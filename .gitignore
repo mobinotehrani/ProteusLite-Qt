@@ -1,0 +1,15 @@
+# CMake / Qt Creator build output
+build/
+build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.user
+*.autosave
+
+# Compiled files
+*.exe
+*.app/
+*.o
+*.obj
