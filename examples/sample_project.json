@@ -1,0 +1,34 @@
+{
+  "app": "ProteusPro_Final",
+  "version": 2,
+  "name": "Section 2 Sample",
+  "canvas": {
+    "w": 1200,
+    "h": 800
+  },
+  "components": [
+    {
+      "type": "Voltage",
+      "ref": "V1",
+      "value": "5",
+      "x": 100,
+      "y": 100
+    },
+    {
+      "type": "Ground",
+      "ref": "GND1",
+      "value": "0",
+      "x": 100,
+      "y": 220
+    }
+  ],
+  "wires": [
+    {
+      "points": [
+        {"x": 100, "y": 140},
+        {"x": 100, "y": 200}
+      ]
+    }
+  ],
+  "junctions": []
+}

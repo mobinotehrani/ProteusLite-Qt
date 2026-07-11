@@ -1,34 +1,20 @@
-#include <QtWidgets>
+#include "mainwindow.h"
 
-class MainWindow final : public QMainWindow
+#include <QApplication>
+#include <QFont>
+
+int main(int argc, char *argv[])
 {
-  public:
-    MainWindow()
-    {
-        setWindowTitle("ProteusPro - Circuit Designer");
-        resize(1200, 800);
-        setMinimumSize(900, 600);
+    QApplication application(argc, argv);
+    application.setApplicationName(QStringLiteral("ProteusPro_Final"));
+    application.setOrganizationName(QStringLiteral("HomeworkMOT"));
 
-        auto *workspace = new QWidget(this);
-        auto *layout = new QVBoxLayout(workspace);
-        auto *title = new QLabel("ProteusPro workspace", workspace);
+    QFont font = application.font();
+    font.setPointSize(10);
+    application.setFont(font);
 
-        title->setAlignment(Qt::AlignCenter);
-        layout->addWidget(title);
-        setCentralWidget(workspace);
+    MainWindow mainWindow;
+    mainWindow.show();
 
-        statusBar()->showMessage("Ready");
-    }
-};
-
-int main(int argc, char **argv)
-{
-    QApplication app(argc, argv);
-    QApplication::setApplicationName("ProteusPro_Final");
-    QApplication::setOrganizationName("HomeworkMOT");
-
-    MainWindow window;
-    window.show();
-
-    return app.exec();
+    return application.exec();
 }
