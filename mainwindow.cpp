@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include "canvasview.h"
 #include "startmenudialog.h"
 
 #include <QAction>
@@ -8,53 +9,68 @@
 #include <QFrame>
 #include <QKeySequence>
 #include <QLabel>
+#include <QList>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QStackedWidget>
 #include <QStatusBar>
 #include <QTimer>
+#include <QToolBar>
 #include <QVBoxLayout>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    setWindowTitle(tr("ProteusPro - Circuit Designer"));
-    resize(1200, 800);
-    setMinimumSize(900, 620);
+    resize(1280, 820);
+    setMinimumSize(960, 640);
+
     buildInterface();
+    buildWorkspaceActions();
     buildMenus();
+    buildToolBar();
+    buildStatusBar();
+    connectCanvasSignals();
     showNoProject();
+
     QTimer::singleShot(0, this, [this] { showStartMenu(); });
 }
 
 void MainWindow::buildInterface()
 {
     setStyleSheet(
-        "QMainWindow{background:#eef2f7;}"
-        "QFrame#WorkspaceCard{background:white;border:1px solid #d8e0eb;border-radius:16px;}"
+        "QMainWindow{background:#e9eef5;}"
+        "QFrame#WorkspaceCard{background:white;border:1px solid #d5deea;border-radius:14px;}"
+        "QFrame#CanvasFrame{background:#dce3ec;border:1px solid #cbd5e1;border-radius:10px;}"
         "QLabel#ProjectTitle{color:#0f172a;}"
         "QLabel#ProjectDetails{color:#64748b;}"
-        "QLabel#CanvasPlaceholder{background:#f8fafc;border:2px dashed #94a3b8;border-radius:12px;"
-        "color:#475569;padding:30px;}"
+        "QLabel#EmptyTitle{color:#0f172a;}"
+        "QLabel#EmptyHint{color:#64748b;}"
         "QMenuBar{background:white;border-bottom:1px solid #dbe3ef;}"
         "QMenuBar::item:selected{background:#dbeafe;}"
         "QMenu{background:white;border:1px solid #cbd5e1;}"
-        "QMenu::item:selected{background:#dbeafe;color:#1e3a8a;}");
+        "QMenu::item:selected{background:#dbeafe;color:#1e3a8a;}"
+        "QToolBar{background:white;border:0;border-bottom:1px solid #dbe3ef;padding:5px;spacing:4px;}"
+        "QToolButton{background:#f8fafc;color:#0f172a;border:1px solid #dbe3ef;border-radius:7px;padding:6px 10px;}"
+        "QToolButton:hover{background:#e0ecff;border-color:#93c5fd;}"
+        "QToolButton:checked{background:#dbeafe;color:#1d4ed8;border-color:#60a5fa;}"
+        "QStatusBar{background:white;border-top:1px solid #dbe3ef;color:#475569;}"
+        "QStatusBar QLabel{padding:0 7px;color:#475569;}");
 
     auto *root = new QWidget;
     auto *rootLayout = new QVBoxLayout(root);
-    rootLayout->setContentsMargins(28, 24, 28, 28);
+    rootLayout->setContentsMargins(18, 16, 18, 18);
 
     auto *card = new QFrame;
     card->setObjectName(QStringLiteral("WorkspaceCard"));
     auto *cardLayout = new QVBoxLayout(card);
-    cardLayout->setContentsMargins(28, 24, 28, 28);
-    cardLayout->setSpacing(10);
+    cardLayout->setContentsMargins(18, 16, 18, 18);
+    cardLayout->setSpacing(8);
 
     m_projectTitle = new QLabel;
     m_projectTitle->setObjectName(QStringLiteral("ProjectTitle"));
     QFont titleFont = m_projectTitle->font();
-    titleFont.setPointSize(20);
+    titleFont.setPointSize(18);
     titleFont.setBold(true);
     m_projectTitle->setFont(titleFont);
     cardLayout->addWidget(m_projectTitle);
@@ -64,17 +80,76 @@ void MainWindow::buildInterface()
     m_projectDetails->setWordWrap(true);
     cardLayout->addWidget(m_projectDetails);
 
-    m_canvasPlaceholder = new QLabel;
-    m_canvasPlaceholder->setObjectName(QStringLiteral("CanvasPlaceholder"));
-    m_canvasPlaceholder->setAlignment(Qt::AlignCenter);
-    m_canvasPlaceholder->setMinimumHeight(390);
-    m_canvasPlaceholder->setWordWrap(true);
-    cardLayout->addWidget(m_canvasPlaceholder, 1);
+    m_workspaceStack = new QStackedWidget;
+
+    m_emptyPage = new QWidget;
+    auto *emptyLayout = new QVBoxLayout(m_emptyPage);
+    emptyLayout->setContentsMargins(30, 30, 30, 30);
+    emptyLayout->addStretch();
+
+    auto *emptyTitle = new QLabel(tr("Create or open a project to activate the design canvas"));
+    emptyTitle->setObjectName(QStringLiteral("EmptyTitle"));
+    emptyTitle->setAlignment(Qt::AlignCenter);
+    QFont emptyTitleFont = emptyTitle->font();
+    emptyTitleFont.setPointSize(17);
+    emptyTitleFont.setBold(true);
+    emptyTitle->setFont(emptyTitleFont);
+    emptyLayout->addWidget(emptyTitle);
+
+    auto *emptyHint = new QLabel(
+        tr("Section 3 provides a grid-based sheet, live coordinates, snap preview, mouse-wheel zoom, "
+           "middle-button/Space panning, and workspace view controls."));
+    emptyHint->setObjectName(QStringLiteral("EmptyHint"));
+    emptyHint->setAlignment(Qt::AlignCenter);
+    emptyHint->setWordWrap(true);
+    emptyLayout->addWidget(emptyHint);
+    emptyLayout->addStretch();
+
+    m_canvasPage = new QFrame;
+    m_canvasPage->setObjectName(QStringLiteral("CanvasFrame"));
+    auto *canvasLayout = new QVBoxLayout(m_canvasPage);
+    canvasLayout->setContentsMargins(1, 1, 1, 1);
+    m_canvasView = new CanvasView;
+    canvasLayout->addWidget(m_canvasView);
+
+    m_workspaceStack->addWidget(m_emptyPage);
+    m_workspaceStack->addWidget(m_canvasPage);
+    cardLayout->addWidget(m_workspaceStack, 1);
 
     rootLayout->addWidget(card, 1);
-    m_workspace = root;
-    setCentralWidget(m_workspace);
-    statusBar()->showMessage(tr("Ready"));
+    setCentralWidget(root);
+}
+
+void MainWindow::buildWorkspaceActions()
+{
+    m_gridAction = new QAction(tr("Grid"), this);
+    m_gridAction->setCheckable(true);
+    m_gridAction->setChecked(true);
+    m_gridAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+G")));
+    connect(m_gridAction, &QAction::toggled, m_canvasView, &CanvasView::setGridVisible);
+
+    m_snapAction = new QAction(tr("Snap"), this);
+    m_snapAction->setCheckable(true);
+    m_snapAction->setChecked(true);
+    m_snapAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+G")));
+    connect(m_snapAction, &QAction::toggled, m_canvasView, &CanvasView::setSnapEnabled);
+
+    m_zoomInAction = new QAction(tr("Zoom In"), this);
+    m_zoomInAction->setShortcuts(QList<QKeySequence>{QKeySequence(QKeySequence::ZoomIn),
+                                                     QKeySequence(QStringLiteral("Ctrl+="))});
+    connect(m_zoomInAction, &QAction::triggered, m_canvasView, &CanvasView::zoomIn);
+
+    m_zoomOutAction = new QAction(tr("Zoom Out"), this);
+    m_zoomOutAction->setShortcut(QKeySequence::ZoomOut);
+    connect(m_zoomOutAction, &QAction::triggered, m_canvasView, &CanvasView::zoomOut);
+
+    m_resetZoomAction = new QAction(tr("100%"), this);
+    m_resetZoomAction->setShortcut(QKeySequence(QStringLiteral("Ctrl+0")));
+    connect(m_resetZoomAction, &QAction::triggered, m_canvasView, &CanvasView::resetZoom);
+
+    m_fitSheetAction = new QAction(tr("Fit Sheet"), this);
+    m_fitSheetAction->setShortcut(QKeySequence(QStringLiteral("F")));
+    connect(m_fitSheetAction, &QAction::triggered, m_canvasView, &CanvasView::fitSheet);
 }
 
 void MainWindow::buildMenus()
@@ -99,6 +174,93 @@ void MainWindow::buildMenus()
     QAction *exitAction = fileMenu->addAction(tr("Exit"));
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
+
+    QMenu *viewMenu = menuBar()->addMenu(tr("View"));
+    viewMenu->addAction(m_gridAction);
+    viewMenu->addAction(m_snapAction);
+    viewMenu->addSeparator();
+    viewMenu->addAction(m_zoomInAction);
+    viewMenu->addAction(m_zoomOutAction);
+    viewMenu->addAction(m_resetZoomAction);
+    viewMenu->addAction(m_fitSheetAction);
+}
+
+void MainWindow::buildToolBar()
+{
+    auto *toolBar = addToolBar(tr("Canvas Tools"));
+    toolBar->setObjectName(QStringLiteral("CanvasTools"));
+    toolBar->setMovable(false);
+    toolBar->setFloatable(false);
+    toolBar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+
+    toolBar->addAction(m_gridAction);
+    toolBar->addAction(m_snapAction);
+    toolBar->addSeparator();
+    toolBar->addAction(m_zoomInAction);
+    toolBar->addAction(m_zoomOutAction);
+    toolBar->addAction(m_resetZoomAction);
+    toolBar->addAction(m_fitSheetAction);
+}
+
+void MainWindow::buildStatusBar()
+{
+    statusBar()->showMessage(tr("Ready"));
+
+    m_panStatus = new QLabel(tr("Pan: middle mouse or Space + drag"));
+    m_coordinateStatus = new QLabel(tr("X: —   Y: —"));
+    m_snapStatus = new QLabel(tr("Snap: 20 px"));
+    m_zoomStatus = new QLabel(tr("Zoom: 100%"));
+
+    statusBar()->addPermanentWidget(m_panStatus, 1);
+    statusBar()->addPermanentWidget(m_coordinateStatus);
+    statusBar()->addPermanentWidget(m_snapStatus);
+    statusBar()->addPermanentWidget(m_zoomStatus);
+}
+
+void MainWindow::connectCanvasSignals()
+{
+    connect(m_canvasView, &CanvasView::cursorPositionChanged, this,
+            [this](const QPointF &raw, const QPointF &snapped)
+            {
+                m_coordinateStatus->setText(
+                    tr("X: %1   Y: %2").arg(qRound(raw.x())).arg(qRound(raw.y())));
+
+                if (m_canvasView->isSnapEnabled())
+                {
+                    m_snapStatus->setText(
+                        tr("Snap: %1, %2").arg(qRound(snapped.x())).arg(qRound(snapped.y())));
+                }
+                else
+                {
+                    m_snapStatus->setText(tr("Snap: Off"));
+                }
+            });
+
+    connect(m_canvasView, &CanvasView::cursorLeftCanvas, this,
+            [this]
+            {
+                m_coordinateStatus->setText(tr("X: —   Y: —"));
+                m_snapStatus->setText(m_canvasView->isSnapEnabled() ? tr("Snap: 20 px") : tr("Snap: Off"));
+            });
+
+    connect(m_canvasView, &CanvasView::zoomChanged, this,
+            [this](double factor)
+            {
+                m_zoomStatus->setText(tr("Zoom: %1%").arg(qRound(factor * 100.0)));
+            });
+
+    connect(m_canvasView, &CanvasView::panningChanged, this,
+            [this](bool active)
+            {
+                m_panStatus->setText(active ? tr("Panning canvas...")
+                                            : tr("Pan: middle mouse or Space + drag"));
+            });
+
+    connect(m_snapAction, &QAction::toggled, this,
+            [this](bool enabled)
+            {
+                m_snapStatus->setText(enabled ? tr("Snap: 20 px") : tr("Snap: Off"));
+            });
 }
 
 void MainWindow::showStartMenu()
@@ -213,7 +375,7 @@ void MainWindow::showProject(const ProjectMetadata &metadata)
 
     if (metadata.openedFromFile)
     {
-        details += tr("   |   Components: %1   |   Wires: %2")
+        details += tr("   |   Components in file: %1   |   Wires in file: %2")
                        .arg(metadata.componentCount)
                        .arg(metadata.wireCount);
         details += QStringLiteral("\n") + metadata.filePath;
@@ -222,19 +384,47 @@ void MainWindow::showProject(const ProjectMetadata &metadata)
     {
         details += tr("   |   Unsaved project");
     }
-    m_projectDetails->setText(details);
 
-    m_canvasPlaceholder->setText(
-        tr("Project workspace is ready.\n\n"
-           "The selected sheet size and project metadata are now available to the application.\n"
-           "Grid, zoom, panning, coordinates, and circuit editing are implemented in Section 3 and later sections."));
+    m_projectDetails->setText(details);
+    m_canvasView->setCanvasSize(metadata.canvasSize);
+    m_workspaceStack->setCurrentWidget(m_canvasPage);
+    setWorkspaceActionsEnabled(true);
+    updateWindowTitle();
+
+    QTimer::singleShot(0, m_canvasView, &CanvasView::fitSheet);
 }
 
 void MainWindow::showNoProject()
 {
+    m_currentProject = ProjectMetadata{};
     m_projectTitle->setText(tr("No project selected"));
     m_projectDetails->setText(tr("Use File > New Project or File > Open Project to begin."));
-    m_canvasPlaceholder->setText(
-        tr("ProteusPro workspace\n\n"
-           "Section 2 adds the start menu, new-project flow, canvas-size selection, project opening, and recent files."));
+    m_workspaceStack->setCurrentWidget(m_emptyPage);
+    setWorkspaceActionsEnabled(false);
+    updateWindowTitle();
+}
+
+void MainWindow::setWorkspaceActionsEnabled(bool enabled)
+{
+    m_gridAction->setEnabled(enabled);
+    m_snapAction->setEnabled(enabled);
+    m_zoomInAction->setEnabled(enabled);
+    m_zoomOutAction->setEnabled(enabled);
+    m_resetZoomAction->setEnabled(enabled);
+    m_fitSheetAction->setEnabled(enabled);
+
+    if (!enabled)
+    {
+        m_coordinateStatus->setText(tr("X: —   Y: —"));
+        m_snapStatus->setText(tr("Snap: —"));
+        m_zoomStatus->setText(tr("Zoom: —"));
+    }
+}
+
+void MainWindow::updateWindowTitle()
+{
+    if (m_workspaceStack->currentWidget() == m_canvasPage && !m_currentProject.name.isEmpty())
+        setWindowTitle(tr("%1 - ProteusPro").arg(m_currentProject.name));
+    else
+        setWindowTitle(tr("ProteusPro - Circuit Designer"));
 }
