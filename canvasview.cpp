@@ -1,6 +1,12 @@
 #include "canvasview.h"
 
-#include <QApplication>
+#include <QColor>
+#include <QEvent>
+#include <QFrame>
+#include <QPen>
+#include <QRectF>
+#include <QString>
+#include <QGraphicsScene>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -30,7 +36,8 @@ CanvasView::CanvasView(QWidget *parent)
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setResizeAnchor(QGraphicsView::AnchorViewCenter);
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
-    setDragMode(QGraphicsView::NoDrag);
+    setDragMode(QGraphicsView::RubberBandDrag);
+    setRubberBandSelectionMode(Qt::IntersectsItemShape);
     setMouseTracking(true);
     viewport()->setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
@@ -57,7 +64,6 @@ void CanvasView::setGridVisible(bool visible)
 {
     if (m_gridVisible == visible)
         return;
-
     m_gridVisible = visible;
     viewport()->update();
 }
@@ -113,6 +119,29 @@ QPointF CanvasView::snapToGrid(const QPointF &point) const
 double CanvasView::zoomFactor() const
 {
     return m_zoomFactor;
+}
+
+void CanvasView::prepareComponentPlacement(const QString &componentName)
+{
+    m_preparedComponentName = componentName.trimmed();
+    updateInteractionCursor();
+    viewport()->update();
+}
+
+void CanvasView::cancelComponentPlacement()
+{
+    if (m_preparedComponentName.isEmpty())
+        return;
+
+    m_preparedComponentName.clear();
+    updateInteractionCursor();
+    viewport()->update();
+    emit placementCanceled();
+}
+
+bool CanvasView::hasPreparedComponent() const
+{
+    return !m_preparedComponentName.isEmpty();
 }
 
 void CanvasView::zoomIn()
@@ -199,20 +228,36 @@ void CanvasView::drawBackground(QPainter *painter, const QRectF &rect)
 
 void CanvasView::drawForeground(QPainter *painter, const QRectF &)
 {
-    if (!m_cursorInsideCanvas || !m_snapEnabled)
+    if (!m_cursorInsideCanvas)
         return;
 
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const QPointF point = m_snappedCursorPosition;
-    painter->setPen(QPen(QColor(37, 99, 235, 210), 0.0, Qt::DashLine));
-    painter->drawLine(point + QPointF(-10.0, 0.0), point + QPointF(10.0, 0.0));
-    painter->drawLine(point + QPointF(0.0, -10.0), point + QPointF(0.0, 10.0));
+    if (m_snapEnabled)
+    {
+        const QPointF point = m_snappedCursorPosition;
+        painter->setPen(QPen(QColor(37, 99, 235, 210), 0.0, Qt::DashLine));
+        painter->drawLine(point + QPointF(-10.0, 0.0), point + QPointF(10.0, 0.0));
+        painter->drawLine(point + QPointF(0.0, -10.0), point + QPointF(0.0, 10.0));
+        painter->setPen(QPen(QColor(29, 78, 216), 0.0));
+        painter->setBrush(QColor(147, 197, 253, 110));
+        painter->drawEllipse(point, 4.0, 4.0);
+    }
 
-    painter->setPen(QPen(QColor(29, 78, 216), 0.0));
-    painter->setBrush(QColor(147, 197, 253, 110));
-    painter->drawEllipse(point, 4.0, 4.0);
+    if (!m_preparedComponentName.isEmpty())
+    {
+        const QPointF point = m_snapEnabled ? m_snappedCursorPosition : m_rawCursorPosition;
+        const QRectF labelRect(point.x() + 14.0, point.y() - 36.0, 190.0, 28.0);
+        painter->setPen(QPen(QColor(37, 99, 235), 0.0));
+        painter->setBrush(QColor(239, 246, 255, 235));
+        painter->drawRoundedRect(labelRect, 6.0, 6.0);
+        painter->setPen(QColor(30, 64, 175));
+        painter->drawText(labelRect.adjusted(8.0, 0.0, -8.0, 0.0),
+                          Qt::AlignVCenter | Qt::AlignLeft,
+                          tr("Ready: %1").arg(m_preparedComponentName));
+    }
+
     painter->restore();
 }
 
@@ -231,11 +276,26 @@ void CanvasView::wheelEvent(QWheelEvent *event)
 
 void CanvasView::mousePressEvent(QMouseEvent *event)
 {
-    updateCursorPosition(mousePosition(event));
+    const QPoint position = mousePosition(event);
+    updateCursorPosition(position);
+
+    if (event->button() == Qt::RightButton && hasPreparedComponent())
+    {
+        cancelComponentPlacement();
+        event->accept();
+        return;
+    }
 
     if (shouldStartPanning(event))
     {
-        beginPanning(mousePosition(event));
+        beginPanning(position);
+        event->accept();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && hasPreparedComponent() && m_cursorInsideCanvas)
+    {
+        emit placementPointChosen(m_snapEnabled ? m_snappedCursorPosition : m_rawCursorPosition);
         event->accept();
         return;
     }
@@ -275,11 +335,17 @@ void CanvasView::mouseReleaseEvent(QMouseEvent *event)
 
 void CanvasView::keyPressEvent(QKeyEvent *event)
 {
+    if (event->key() == Qt::Key_Escape && hasPreparedComponent())
+    {
+        cancelComponentPlacement();
+        event->accept();
+        return;
+    }
+
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat())
     {
         m_spacePressed = true;
-        if (!m_panning)
-            setCursor(Qt::OpenHandCursor);
+        updateInteractionCursor();
         event->accept();
         return;
     }
@@ -292,8 +358,7 @@ void CanvasView::keyReleaseEvent(QKeyEvent *event)
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat())
     {
         m_spacePressed = false;
-        if (!m_panning)
-            unsetCursor();
+        updateInteractionCursor();
         event->accept();
         return;
     }
@@ -374,6 +439,18 @@ void CanvasView::beginPanning(const QPoint &viewPosition)
 void CanvasView::endPanning()
 {
     m_panning = false;
-    setCursor(m_spacePressed ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    updateInteractionCursor();
     emit panningChanged(false);
+}
+
+void CanvasView::updateInteractionCursor()
+{
+    if (m_panning)
+        setCursor(Qt::ClosedHandCursor);
+    else if (m_spacePressed)
+        setCursor(Qt::OpenHandCursor);
+    else if (hasPreparedComponent())
+        setCursor(Qt::CrossCursor);
+    else
+        unsetCursor();
 }

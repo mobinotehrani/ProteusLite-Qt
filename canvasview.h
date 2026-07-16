@@ -3,7 +3,13 @@
 #include <QGraphicsView>
 #include <QPointF>
 #include <QSize>
+#include <QString>
 
+class QEvent;
+class QKeyEvent;
+class QMouseEvent;
+class QPainter;
+class QWheelEvent;
 class CanvasView final : public QGraphicsView
 {
     Q_OBJECT
@@ -26,6 +32,10 @@ public:
     QPointF snapToGrid(const QPointF &point) const;
     double zoomFactor() const;
 
+    void prepareComponentPlacement(const QString &componentName);
+    void cancelComponentPlacement();
+    bool hasPreparedComponent() const;
+
 public slots:
     void zoomIn();
     void zoomOut();
@@ -37,6 +47,8 @@ signals:
     void cursorLeftCanvas();
     void zoomChanged(double factor);
     void panningChanged(bool active);
+    void placementPointChosen(const QPointF &position);
+    void placementCanceled();
 
 protected:
     void drawBackground(QPainter *painter, const QRectF &rect) override;
@@ -58,6 +70,7 @@ private:
     bool shouldStartPanning(const QMouseEvent *event) const;
     void beginPanning(const QPoint &viewPosition);
     void endPanning();
+    void updateInteractionCursor();
 
     int m_gridSpacing{20};
     bool m_gridVisible{true};
@@ -69,4 +82,5 @@ private:
     QPointF m_rawCursorPosition;
     QPointF m_snappedCursorPosition;
     double m_zoomFactor{1.0};
+    QString m_preparedComponentName;
 };

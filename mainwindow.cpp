@@ -1,15 +1,20 @@
 #include "mainwindow.h"
 
 #include "canvasview.h"
+#include "componentlibrarypanel.h"
 #include "startmenudialog.h"
 
+#include <QFont>
+#include <QPointF>
+#include <QWidget>
 #include <QAction>
+#include <QComboBox>
+#include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFrame>
 #include <QKeySequence>
 #include <QLabel>
-#include <QList>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -22,11 +27,13 @@
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
-    resize(1280, 820);
-    setMinimumSize(960, 640);
+    resize(1380, 850);
+    setMinimumSize(1040, 680);
+    setDockNestingEnabled(true);
 
     buildInterface();
     buildWorkspaceActions();
+    buildComponentLibrary();
     buildMenus();
     buildToolBar();
     buildStatusBar();
@@ -55,7 +62,9 @@ void MainWindow::buildInterface()
         "QToolButton:hover{background:#e0ecff;border-color:#93c5fd;}"
         "QToolButton:checked{background:#dbeafe;color:#1d4ed8;border-color:#60a5fa;}"
         "QStatusBar{background:white;border-top:1px solid #dbe3ef;color:#475569;}"
-        "QStatusBar QLabel{padding:0 7px;color:#475569;}");
+        "QStatusBar QLabel{padding:0 7px;color:#475569;}"
+        "QDockWidget{color:#0f172a;font-weight:700;}"
+        "QDockWidget::title{background:#e2e8f0;border:1px solid #cbd5e1;padding:7px;}");
 
     auto *root = new QWidget;
     auto *rootLayout = new QVBoxLayout(root);
@@ -87,7 +96,7 @@ void MainWindow::buildInterface()
     emptyLayout->setContentsMargins(30, 30, 30, 30);
     emptyLayout->addStretch();
 
-    auto *emptyTitle = new QLabel(tr("Create or open a project to activate the design canvas"));
+    auto *emptyTitle = new QLabel(tr("Create or open a project to activate the design workspace"));
     emptyTitle->setObjectName(QStringLiteral("EmptyTitle"));
     emptyTitle->setAlignment(Qt::AlignCenter);
     QFont emptyTitleFont = emptyTitle->font();
@@ -97,8 +106,8 @@ void MainWindow::buildInterface()
     emptyLayout->addWidget(emptyTitle);
 
     auto *emptyHint = new QLabel(
-        tr("Section 3 provides a grid-based sheet, live coordinates, snap preview, mouse-wheel zoom, "
-           "middle-button/Space panning, and workspace view controls."));
+        tr("The component library is available on the left. After a project is created, Grid, Snap, Zoom, Pan, "
+           "coordinates, schematic preview, active parts, and placement preparation become available."));
     emptyHint->setObjectName(QStringLiteral("EmptyHint"));
     emptyHint->setAlignment(Qt::AlignCenter);
     emptyHint->setWordWrap(true);
@@ -135,8 +144,7 @@ void MainWindow::buildWorkspaceActions()
     connect(m_snapAction, &QAction::toggled, m_canvasView, &CanvasView::setSnapEnabled);
 
     m_zoomInAction = new QAction(tr("Zoom In"), this);
-    m_zoomInAction->setShortcuts(QList<QKeySequence>{QKeySequence(QKeySequence::ZoomIn),
-                                                     QKeySequence(QStringLiteral("Ctrl+="))});
+    m_zoomInAction->setShortcuts({QKeySequence::ZoomIn, QKeySequence(QStringLiteral("Ctrl+="))});
     connect(m_zoomInAction, &QAction::triggered, m_canvasView, &CanvasView::zoomIn);
 
     m_zoomOutAction = new QAction(tr("Zoom Out"), this);
@@ -150,6 +158,24 @@ void MainWindow::buildWorkspaceActions()
     m_fitSheetAction = new QAction(tr("Fit Sheet"), this);
     m_fitSheetAction->setShortcut(QKeySequence(QStringLiteral("F")));
     connect(m_fitSheetAction, &QAction::triggered, m_canvasView, &CanvasView::fitSheet);
+}
+
+void MainWindow::buildComponentLibrary()
+{
+    m_libraryDock = new QDockWidget(tr("Component Library"), this);
+    m_libraryDock->setObjectName(QStringLiteral("ComponentLibraryDock"));
+    m_libraryDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_libraryDock->setMinimumWidth(325);
+
+    m_libraryPanel = new ComponentLibraryPanel;
+    m_libraryDock->setWidget(m_libraryPanel);
+    addDockWidget(Qt::LeftDockWidgetArea, m_libraryDock);
+
+    connect(m_libraryPanel, &ComponentLibraryPanel::placementRequested, this,
+            [this](const QString &componentId, const QString &displayName)
+            { prepareComponentPlacement(componentId, displayName); });
+    connect(m_libraryPanel, &ComponentLibraryPanel::statusMessageRequested, this,
+            [this](const QString &message) { statusBar()->showMessage(message, 3500); });
 }
 
 void MainWindow::buildMenus()
@@ -176,6 +202,8 @@ void MainWindow::buildMenus()
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
     QMenu *viewMenu = menuBar()->addMenu(tr("View"));
+    viewMenu->addAction(m_libraryDock->toggleViewAction());
+    viewMenu->addSeparator();
     viewMenu->addAction(m_gridAction);
     viewMenu->addAction(m_snapAction);
     viewMenu->addSeparator();
@@ -195,6 +223,24 @@ void MainWindow::buildToolBar()
 
     toolBar->addAction(m_gridAction);
     toolBar->addAction(m_snapAction);
+
+    m_gridSpacingCombo = new QComboBox;
+    m_gridSpacingCombo->setToolTip(tr("Grid spacing"));
+    m_gridSpacingCombo->addItem(tr("Grid 10 px"), 10);
+    m_gridSpacingCombo->addItem(tr("Grid 20 px"), 20);
+    m_gridSpacingCombo->addItem(tr("Grid 40 px"), 40);
+    m_gridSpacingCombo->setCurrentIndex(1);
+    toolBar->addWidget(m_gridSpacingCombo);
+    connect(m_gridSpacingCombo, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [this](int index)
+            {
+                const int spacing = m_gridSpacingCombo->itemData(index).toInt();
+                m_canvasView->setGridSpacing(spacing);
+                m_snapStatus->setText(m_canvasView->isSnapEnabled()
+                                          ? tr("Snap: %1 px").arg(spacing)
+                                          : tr("Snap: Off"));
+            });
+
     toolBar->addSeparator();
     toolBar->addAction(m_zoomInAction);
     toolBar->addAction(m_zoomOutAction);
@@ -206,11 +252,13 @@ void MainWindow::buildStatusBar()
 {
     statusBar()->showMessage(tr("Ready"));
 
+    m_toolStatus = new QLabel(tr("Tool: Select"));
     m_panStatus = new QLabel(tr("Pan: middle mouse or Space + drag"));
     m_coordinateStatus = new QLabel(tr("X: —   Y: —"));
     m_snapStatus = new QLabel(tr("Snap: 20 px"));
     m_zoomStatus = new QLabel(tr("Zoom: 100%"));
 
+    statusBar()->addPermanentWidget(m_toolStatus);
     statusBar()->addPermanentWidget(m_panStatus, 1);
     statusBar()->addPermanentWidget(m_coordinateStatus);
     statusBar()->addPermanentWidget(m_snapStatus);
@@ -240,7 +288,9 @@ void MainWindow::connectCanvasSignals()
             [this]
             {
                 m_coordinateStatus->setText(tr("X: —   Y: —"));
-                m_snapStatus->setText(m_canvasView->isSnapEnabled() ? tr("Snap: 20 px") : tr("Snap: Off"));
+                m_snapStatus->setText(m_canvasView->isSnapEnabled()
+                                          ? tr("Snap: %1 px").arg(m_canvasView->gridSpacing())
+                                          : tr("Snap: Off"));
             });
 
     connect(m_canvasView, &CanvasView::zoomChanged, this,
@@ -259,7 +309,31 @@ void MainWindow::connectCanvasSignals()
     connect(m_snapAction, &QAction::toggled, this,
             [this](bool enabled)
             {
-                m_snapStatus->setText(enabled ? tr("Snap: 20 px") : tr("Snap: Off"));
+                m_snapStatus->setText(enabled
+                                          ? tr("Snap: %1 px").arg(m_canvasView->gridSpacing())
+                                          : tr("Snap: Off"));
+            });
+
+    connect(m_canvasView, &CanvasView::placementPointChosen, this,
+            [this](const QPointF &position)
+            {
+                const QString componentName = m_pendingComponentName;
+                m_canvasView->cancelComponentPlacement();
+                statusBar()->showMessage(
+                    tr("Placement point selected for %1 at (%2, %3). The actual ComponentItem instance is added in Section 5.")
+                        .arg(componentName)
+                        .arg(qRound(position.x()))
+                        .arg(qRound(position.y())),
+                    5500);
+            });
+
+    connect(m_canvasView, &CanvasView::placementCanceled, this,
+            [this]
+            {
+                m_pendingComponentId.clear();
+                m_pendingComponentName.clear();
+                m_toolStatus->setText(tr("Tool: Select"));
+                statusBar()->showMessage(tr("Component placement preparation canceled."), 2500);
             });
 }
 
@@ -412,12 +486,21 @@ void MainWindow::setWorkspaceActionsEnabled(bool enabled)
     m_zoomOutAction->setEnabled(enabled);
     m_resetZoomAction->setEnabled(enabled);
     m_fitSheetAction->setEnabled(enabled);
+    m_gridSpacingCombo->setEnabled(enabled);
+    m_libraryPanel->setPlacementEnabled(enabled);
 
     if (!enabled)
     {
         m_coordinateStatus->setText(tr("X: —   Y: —"));
         m_snapStatus->setText(tr("Snap: —"));
         m_zoomStatus->setText(tr("Zoom: —"));
+        m_toolStatus->setText(tr("Tool: —"));
+        m_canvasView->cancelComponentPlacement();
+    }
+    else
+    {
+        m_toolStatus->setText(tr("Tool: Select"));
+        m_snapStatus->setText(tr("Snap: %1 px").arg(m_canvasView->gridSpacing()));
     }
 }
 
@@ -427,4 +510,23 @@ void MainWindow::updateWindowTitle()
         setWindowTitle(tr("%1 - ProteusPro").arg(m_currentProject.name));
     else
         setWindowTitle(tr("ProteusPro - Circuit Designer"));
+}
+
+void MainWindow::prepareComponentPlacement(const QString &componentId, const QString &displayName)
+{
+    if (m_workspaceStack->currentWidget() != m_canvasPage)
+    {
+        statusBar()->showMessage(tr("Create or open a project before preparing placement."), 3500);
+        return;
+    }
+
+    m_pendingComponentId = componentId;
+    m_pendingComponentName = displayName;
+    m_canvasView->prepareComponentPlacement(displayName);
+    m_canvasView->setFocus();
+    m_toolStatus->setText(tr("Tool: Place %1").arg(displayName));
+    statusBar()->showMessage(
+        tr("%1 is ready. Move to the canvas and click a Snap point; Esc or right-click cancels.")
+            .arg(displayName),
+        4500);
 }
