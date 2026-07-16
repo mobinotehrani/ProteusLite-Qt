@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="Section 4 XML Sample">
+  <canvas w="1600" h="1000"/>
+  <components>
+    <component type="Resistor" ref="R1" value="1k" x="200" y="200"/>
+    <component type="Ground" ref="GND1" value="0" x="200" y="320"/>
+  </components>
+  <wires>
+    <wire/>
+  </wires>
+</project>

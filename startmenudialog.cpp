@@ -1,5 +1,7 @@
 #include "startmenudialog.h"
 
+#include <QFont>
+#include <QListWidgetItem>
 #include <QColor>
 #include <QComboBox>
 #include <QFileInfo>
@@ -82,19 +84,20 @@ void StartMenuDialog::buildInterface(const QStringList &recentProjects)
         tr("Create a blank circuit project, select the design-sheet size, open a saved project, or continue "
            "from the recent-project list."));
     summary->setWordWrap(true);
-    summary->setStyleSheet(QStringLiteral("color:#e0f2fe;font-size:14px;line-height:150%;"));
+    summary->setStyleSheet(QStringLiteral("color:#e0f2fe;font-size:14px;"));
     heroLayout->addWidget(summary);
 
     auto *features = new QLabel(
         tr("New project and canvas presets\n"
            "JSON/XML project metadata loading\n"
-           "Persistent list of five recent projects\n"
-           "Prepared for the design canvas in Section 3"));
-    features->setStyleSheet(QStringLiteral("color:#bfdbfe;font-size:13px;line-height:160%;"));
+           "Interactive grid canvas with zoom and pan\n"
+           "Searchable component library and schematic preview"));
+    features->setStyleSheet(QStringLiteral("color:#bfdbfe;font-size:13px;"));
     heroLayout->addWidget(features);
     heroLayout->addStretch();
 
-    auto *tip = new QLabel(tr("Section 2 establishes the project flow. Circuit editing is added in the next sections."));
+    auto *tip = new QLabel(
+        tr("Sections 1-4 provide the application foundation, project flow, design workspace, and component library."));
     tip->setWordWrap(true);
     tip->setStyleSheet(QStringLiteral("color:#93c5fd;"));
     heroLayout->addWidget(tip);

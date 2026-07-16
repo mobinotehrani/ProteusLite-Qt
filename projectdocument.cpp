@@ -110,21 +110,20 @@ bool ProjectDocument::loadXml(const QString &filePath,
         if (!xml.isStartElement())
             continue;
 
-        const auto name = xml.name();
-        if (name == QStringLiteral("project"))
+        if (xml.name() == QStringLiteral("project"))
         {
             metadata.name = xml.attributes().value(QStringLiteral("name")).toString();
         }
-        else if (name == QStringLiteral("canvas"))
+        else if (xml.name() == QStringLiteral("canvas"))
         {
             canvasSize.setWidth(xml.attributes().value(QStringLiteral("w")).toInt());
             canvasSize.setHeight(xml.attributes().value(QStringLiteral("h")).toInt());
         }
-        else if (name == QStringLiteral("component"))
+        else if (xml.name() == QStringLiteral("component"))
         {
             ++componentCount;
         }
-        else if (name == QStringLiteral("wire"))
+        else if (xml.name() == QStringLiteral("wire"))
         {
             ++wireCount;
         }

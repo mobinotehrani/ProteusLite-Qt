@@ -53,10 +53,9 @@ void RecentProjectsManager::clear() const
 
 QString RecentProjectsManager::normalizedPath(const QString &filePath)
 {
-    const QFileInfo fileInfo(filePath);
     if (filePath.trimmed().isEmpty())
         return {};
-    return fileInfo.absoluteFilePath();
+    return QFileInfo(filePath).absoluteFilePath();
 }
 
 void RecentProjectsManager::save(const QStringList &projects)
