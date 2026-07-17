@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ProteusPro VERSION 0.4 LANGUAGES CXX)
+project(ProteusPro VERSION 0.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -28,6 +28,16 @@ add_executable(ProteusPro
     componentlibrarypanel.h
     schematicpreviewwidget.cpp
     schematicpreviewwidget.h
+    circuitmodel.cpp
+    circuitmodel.h
+    componentitem.cpp
+    componentitem.h
+    wireitem.cpp
+    wireitem.h
+    junctionitem.cpp
+    junctionitem.h
+    section05controller.cpp
+    section05controller.h
 )
 
 target_link_libraries(ProteusPro PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
