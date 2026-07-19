@@ -37,14 +37,18 @@ Section05Controller::Section05Controller(QMainWindow *window,
     m_canvas->installEventFilter(this);
     m_canvas->viewport()->installEventFilter(this);
 
-    connect(m_library, &ComponentLibraryPanel::placementRequested, this,
+    connect(m_library,
+            &ComponentLibraryPanel::placementRequested,
+            this,
             [this](const QString &componentId, const QString &displayName)
             {
                 m_pendingComponentId = componentId;
                 m_pendingComponentName = displayName;
             });
 
-    connect(m_canvas, &CanvasView::placementPointChosen, this,
+    connect(m_canvas,
+            &CanvasView::placementPointChosen,
+            this,
             [this](const QPointF &position)
             {
                 createComponent(position);
@@ -52,7 +56,9 @@ Section05Controller::Section05Controller(QMainWindow *window,
                 m_pendingComponentName.clear();
             });
 
-    connect(m_window, &QWidget::windowTitleChanged, this,
+    connect(m_window,
+            &QWidget::windowTitleChanged,
+            this,
             [this](const QString &title)
             {
                 if (m_lastWindowTitle.isEmpty())
@@ -68,8 +74,29 @@ Section05Controller::Section05Controller(QMainWindow *window,
             });
     m_lastWindowTitle = m_window->windowTitle();
 
-    setStatus(tr("Section 5 ready: place a component, then click one pin and another pin to draw a 90-degree wire."),
+    setStatus(tr("Section 5 ready: place a component, then click one pin and "
+                 "another pin to draw a 90-degree wire."),
               6500);
+}
+
+const CircuitGraph &Section05Controller::circuitGraph() const
+{
+    return m_graph;
+}
+
+QList<ComponentItem *> Section05Controller::componentItems() const
+{
+    return m_components.values();
+}
+
+ComponentItem *Section05Controller::componentItem(const QString &modelId) const
+{
+    return m_components.value(modelId, nullptr);
+}
+
+CanvasView *Section05Controller::canvasView() const
+{
+    return m_canvas;
 }
 
 bool Section05Controller::eventFilter(QObject *watched, QEvent *event)
@@ -109,8 +136,7 @@ bool Section05Controller::eventFilter(QObject *watched, QEvent *event)
             const EndpointHit endpoint = endpointAt(scenePosition);
             if (endpoint.junction)
             {
-                showJunctionMenu(endpoint.junction,
-                                 m_canvas->viewport()->mapToGlobal(viewPosition));
+                showJunctionMenu(endpoint.junction, m_canvas->viewport()->mapToGlobal(viewPosition));
                 return true;
             }
             return false;
@@ -149,7 +175,8 @@ bool Section05Controller::eventFilter(QObject *watched, QEvent *event)
             return true;
         }
 
-        setStatus(tr("Finish the wire on another pin, a junction, or an existing wire. Right-click or Esc cancels."));
+        setStatus(tr("Finish the wire on another pin, a junction, or an existing "
+                     "wire. Right-click or Esc cancels."));
         return true;
     }
 
@@ -166,8 +193,7 @@ bool Section05Controller::eventFilter(QObject *watched, QEvent *event)
             handleDeleteSelection();
             return true;
         }
-        if (keyEvent->key() == Qt::Key_R || keyEvent->key() == Qt::Key_H ||
-            keyEvent->key() == Qt::Key_V)
+        if (keyEvent->key() == Qt::Key_R || keyEvent->key() == Qt::Key_H || keyEvent->key() == Qt::Key_V)
         {
             handleTransformShortcut(keyEvent->key());
             return true;
@@ -196,11 +222,19 @@ void Section05Controller::createComponent(const QPointF &position)
     m_canvas->scene()->addItem(component);
     m_components.insert(modelId, component);
 
-    connect(component, &ComponentItem::geometryChanged, this,
-            [this, modelId] { updateConnectedWires(modelId); });
-    connect(component, &ComponentItem::deleteRequested, this,
+    connect(
+        component, &ComponentItem::geometryChanged, this, [this, modelId] { updateConnectedWires(modelId); });
+    connect(component,
+            &ComponentItem::pinsChanged,
+            this,
+            [this, component] { handleComponentPinsChanged(component); });
+    connect(component,
+            &ComponentItem::deleteRequested,
+            this,
             [this](ComponentItem *item) { removeComponent(item); });
-    connect(component, &ComponentItem::edited, this,
+    connect(component,
+            &ComponentItem::edited,
+            this,
             [this, component]
             {
                 if (component)
@@ -209,7 +243,8 @@ void Section05Controller::createComponent(const QPointF &position)
 
     component->setSelected(true);
     component->setFocus();
-    setStatus(tr("Placed %1. Click a pin to begin wiring; R rotates, H/V mirrors, Delete removes.")
+    setStatus(tr("Placed %1. Click a pin to begin wiring; R rotates, H/V "
+                 "mirrors, Delete removes.")
                   .arg(component->reference()),
               5200);
 }
@@ -362,9 +397,8 @@ WireItem *Section05Controller::wireAt(const QPointF &scenePosition) const
     if (!m_canvas || !m_canvas->scene())
         return nullptr;
 
-    const QList<QGraphicsItem *> items =
-        m_canvas->scene()->items(scenePosition, Qt::IntersectsItemShape, Qt::DescendingOrder,
-                                 m_canvas->transform());
+    const QList<QGraphicsItem *> items = m_canvas->scene()->items(
+        scenePosition, Qt::IntersectsItemShape, Qt::DescendingOrder, m_canvas->transform());
     for (QGraphicsItem *item : items)
     {
         if (item && item->type() == WireItem::Type)
@@ -387,8 +421,7 @@ QPointF Section05Controller::endpointPosition(const QString &endpoint) const
     return junction ? junction->scenePos() : QPointF();
 }
 
-QPointF Section05Controller::nearestPointOnWire(const WireItem *wire,
-                                                const QPointF &position) const
+QPointF Section05Controller::nearestPointOnWire(const WireItem *wire, const QPointF &position) const
 {
     if (!wire)
         return position;
@@ -434,12 +467,12 @@ void Section05Controller::beginWire(const EndpointHit &endpoint)
     cancelWire(false);
     m_wireStartEndpoint = endpoint.key;
     m_wirePreview = new QGraphicsPathItem;
-    m_wirePreview->setPen(QPen(QColor(37, 99, 235), 2.2, Qt::DashLine, Qt::RoundCap,
-                               Qt::RoundJoin));
+    m_wirePreview->setPen(QPen(QColor(37, 99, 235), 2.2, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin));
     m_wirePreview->setZValue(1.0);
     m_canvas->scene()->addItem(m_wirePreview);
     updateWirePreview(endpointPosition(endpoint.key));
-    setStatus(tr("Wire started. Click another pin, a junction, or an existing wire to finish."),
+    setStatus(tr("Wire started. Click another pin, a junction, or an existing "
+                 "wire to finish."),
               5000);
 }
 
@@ -478,7 +511,8 @@ void Section05Controller::completeWire(const EndpointHit &endpoint)
     if (wire)
     {
         wire->setSelected(true);
-        setStatus(tr("90-degree wire created. Drag either component to see the wire update dynamically."),
+        setStatus(tr("90-degree wire created. Drag either component to see the "
+                     "wire update dynamically."),
                   4200);
     }
 }
@@ -514,7 +548,9 @@ JunctionItem *Section05Controller::createJunction(const QPointF &position)
     m_canvas->scene()->addItem(junction);
     m_junctions.insert(junctionId, junction);
 
-    connect(junction, &JunctionItem::geometryChanged, this,
+    connect(junction,
+            &JunctionItem::geometryChanged,
+            this,
             [this, junctionId, junction]
             {
                 if (!junction)
@@ -525,11 +561,9 @@ JunctionItem *Section05Controller::createJunction(const QPointF &position)
     return junction;
 }
 
-WireItem *Section05Controller::createWire(const QString &startEndpoint,
-                                          const QString &endEndpoint)
+WireItem *Section05Controller::createWire(const QString &startEndpoint, const QString &endEndpoint)
 {
-    if (!m_canvas || startEndpoint.isEmpty() || endEndpoint.isEmpty() ||
-        startEndpoint == endEndpoint)
+    if (!m_canvas || startEndpoint.isEmpty() || endEndpoint.isEmpty() || startEndpoint == endEndpoint)
     {
         return nullptr;
     }
@@ -563,6 +597,26 @@ void Section05Controller::cancelWire(bool showMessage)
         setStatus(tr("Wire creation canceled."), 2200);
 }
 
+void Section05Controller::handleComponentPinsChanged(ComponentItem *component)
+{
+    if (!component)
+        return;
+
+    const QStringList removedWireIds = m_graph.updateComponentPins(component->modelId(), component->pins());
+    for (const QString &wireId : removedWireIds)
+    {
+        WireItem *wire = m_wires.take(wireId);
+        if (!wire)
+            continue;
+        if (wire->scene())
+            wire->scene()->removeItem(wire);
+        delete wire;
+    }
+
+    updateConnectedWires(component->modelId());
+    setStatus(tr("Updated pins for %1.").arg(component->reference()), 2400);
+}
+
 void Section05Controller::updateConnectedWires(const QString &endpointPrefix)
 {
     for (WireItem *wire : m_wires)
@@ -577,9 +631,8 @@ void Section05Controller::updateConnectedWires(const QString &endpointPrefix)
             updateWireGeometry(wire);
     }
 
-    if (!m_wireStartEndpoint.isEmpty() &&
-        (m_wireStartEndpoint == endpointPrefix ||
-         m_wireStartEndpoint.startsWith(endpointPrefix + QLatin1Char('#'))))
+    if (!m_wireStartEndpoint.isEmpty() && (m_wireStartEndpoint == endpointPrefix ||
+                                           m_wireStartEndpoint.startsWith(endpointPrefix + QLatin1Char('#'))))
     {
         updateWirePreview(endpointPosition(m_wireStartEndpoint));
     }
@@ -591,19 +644,16 @@ void Section05Controller::updateWireGeometry(WireItem *wire)
         return;
 
     const QVector<QPointF> points =
-        orthogonalRoute(endpointPosition(wire->startEndpoint()),
-                        endpointPosition(wire->endEndpoint()));
+        orthogonalRoute(endpointPosition(wire->startEndpoint()), endpointPosition(wire->endEndpoint()));
     wire->setPoints(points);
     m_graph.updateWirePoints(wire->modelId(), points);
 }
 
-QVector<QPointF> Section05Controller::orthogonalRoute(const QPointF &start,
-                                                      const QPointF &end) const
+QVector<QPointF> Section05Controller::orthogonalRoute(const QPointF &start, const QPointF &end) const
 {
     QVector<QPointF> points;
     points.append(start);
-    if (qFuzzyCompare(start.x() + 1.0, end.x() + 1.0) ||
-        qFuzzyCompare(start.y() + 1.0, end.y() + 1.0))
+    if (qFuzzyCompare(start.x() + 1.0, end.x() + 1.0) || qFuzzyCompare(start.y() + 1.0, end.y() + 1.0))
     {
         points.append(end);
         return points;
@@ -611,9 +661,8 @@ QVector<QPointF> Section05Controller::orthogonalRoute(const QPointF &start,
 
     const qreal horizontalDistance = std::abs(end.x() - start.x());
     const qreal verticalDistance = std::abs(end.y() - start.y());
-    const QPointF bend = horizontalDistance >= verticalDistance
-                             ? QPointF(end.x(), start.y())
-                             : QPointF(start.x(), end.y());
+    const QPointF bend =
+        horizontalDistance >= verticalDistance ? QPointF(end.x(), start.y()) : QPointF(start.x(), end.y());
     points.append(bend);
     points.append(end);
     return points;
@@ -704,8 +753,7 @@ void Section05Controller::showWireMenu(WireItem *wire,
     }
 }
 
-void Section05Controller::showJunctionMenu(JunctionItem *junction,
-                                           const QPoint &globalPosition)
+void Section05Controller::showJunctionMenu(JunctionItem *junction, const QPoint &globalPosition)
 {
     if (!junction)
         return;

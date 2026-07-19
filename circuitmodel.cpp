@@ -50,6 +50,28 @@ void CircuitGraph::removeComponent(const QString &componentId)
     rebuildNodes();
 }
 
+QStringList CircuitGraph::updateComponentPins(const QString &componentId, const QVector<PinModel> &pins)
+{
+    auto component = m_components.find(componentId);
+    if (component == m_components.end())
+        return {};
+
+    const QString prefix = componentId + QLatin1Char('#');
+    QStringList removedWireIds;
+    for (auto wire = m_wires.cbegin(); wire != m_wires.cend(); ++wire)
+    {
+        if (wire->startEndpoint.startsWith(prefix) || wire->endEndpoint.startsWith(prefix))
+            removedWireIds.append(wire.key());
+    }
+
+    for (const QString &wireId : removedWireIds)
+        m_wires.remove(wireId);
+
+    component->pins = pins;
+    rebuildNodes();
+    return removedWireIds;
+}
+
 QString CircuitGraph::addJunction(const QPointF &position)
 {
     const QString id = QStringLiteral("J%1").arg(m_nextJunctionId++);
@@ -216,8 +238,7 @@ void CircuitGraph::rebuildNodes()
 
         for (const WireModel &wire : m_wires)
         {
-            if (node.endpoints.contains(wire.startEndpoint) ||
-                node.endpoints.contains(wire.endEndpoint))
+            if (node.endpoints.contains(wire.startEndpoint) || node.endpoints.contains(wire.endEndpoint))
             {
                 node.wireIds.append(wire.id);
             }

@@ -47,17 +47,16 @@ struct JunctionModel
 
 class CircuitGraph final
 {
-public:
+  public:
     QString addComponent(const QString &type, const QVector<PinModel> &pins);
     void removeComponent(const QString &componentId);
+    QStringList updateComponentPins(const QString &componentId, const QVector<PinModel> &pins);
 
     QString addJunction(const QPointF &position);
     void updateJunction(const QString &junctionId, const QPointF &position);
     void removeJunction(const QString &junctionId);
 
-    QString addWire(const QString &startEndpoint,
-                    const QString &endEndpoint,
-                    const QVector<QPointF> &points);
+    QString addWire(const QString &startEndpoint, const QString &endEndpoint, const QVector<QPointF> &points);
     void updateWirePoints(const QString &wireId, const QVector<QPointF> &points);
     void removeWire(const QString &wireId);
 
@@ -74,7 +73,7 @@ public:
     static QString pinEndpoint(const QString &componentId, int pinIndex);
     static bool parsePinEndpoint(const QString &endpoint, QString &componentId, int &pinIndex);
 
-private:
+  private:
     struct ComponentRecord
     {
         QString type;
