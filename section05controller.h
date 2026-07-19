@@ -2,8 +2,9 @@
 
 #include "circuitmodel.h"
 
-#include <QObject>
 #include <QHash>
+#include <QList>
+#include <QObject>
 #include <QPoint>
 
 class CanvasView;
@@ -20,16 +21,21 @@ class Section05Controller final : public QObject
 {
     Q_OBJECT
 
-public:
+  public:
     Section05Controller(QMainWindow *window,
                         CanvasView *canvas,
                         ComponentLibraryPanel *library,
                         QObject *parent = nullptr);
 
-protected:
+    const CircuitGraph &circuitGraph() const;
+    QList<ComponentItem *> componentItems() const;
+    ComponentItem *componentItem(const QString &modelId) const;
+    CanvasView *canvasView() const;
+
+  protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
-private:
+  private:
     struct EndpointHit
     {
         QString key;
@@ -37,7 +43,10 @@ private:
         JunctionItem *junction{};
         int pinIndex{-1};
 
-        bool isValid() const { return !key.isEmpty(); }
+        bool isValid() const
+        {
+            return !key.isEmpty();
+        }
     };
 
     void createComponent(const QPointF &position);
@@ -60,6 +69,7 @@ private:
     void cancelWire(bool showMessage = true);
 
     void updateConnectedWires(const QString &endpointPrefix);
+    void handleComponentPinsChanged(ComponentItem *component);
     void updateWireGeometry(WireItem *wire);
     QVector<QPointF> orthogonalRoute(const QPointF &start, const QPointF &end) const;
 
