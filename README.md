@@ -4,7 +4,7 @@
 
 ## وضعیت فعلی پروژه
 
-نسخه موجود در شاخه `develop` شامل بخش‌های پیاده‌سازی‌شده تا پایان بخش ششم است. در این نسخه کاربر می‌تواند پروژه جدید بسازد، قطعات را از کتابخانه انتخاب کند، آن‌ها را روی بوم قرار دهد، مشخصاتشان را تغییر دهد، بین پایه‌ها سیم بکشد و نتیجه ساده شبیه‌سازی را مشاهده کند.
+نسخه موجود در شاخه `develop` شامل بخش‌های پیاده‌سازی‌شده تا پایان بخش هفتم است. در این نسخه کاربر می‌تواند پروژه جدید بسازد، قطعات را از کتابخانه انتخاب کند، آن‌ها را روی بوم قرار دهد، مشخصاتشان را تغییر دهد، بین پایه‌ها سیم بکشد و نتیجه ساده شبیه‌سازی را مشاهده کند.
 
 قابلیت‌های فعلی پروژه:
 
@@ -25,6 +25,13 @@
 - گیت‌های منطقی و D Flip-Flop
 - تشخیص ورودی شناور و درایورهای متناقض
 - نمایش وضعیت مدار در پنل `Section 6 Monitor`
+- ADC و DAC ایده‌آل با رزولوشن و تأخیر تبدیل قابل تنظیم
+- بارگذاری و اعتبارسنجی Firmware استاندارد Intel HEX
+- میکروکنترلر آموزشی با PC، رجیستر، RAM، Decoder و سه Port
+- دستورهای MOV، ADD، JMP، SETB و CLR
+- حافظه خارجی RAM/EEPROM با باس آدرس و داده
+- LCD کاراکتری 16x2 و Keypad ماتریسی 4x4
+- نمایش وضعیت قطعات پیشرفته در پنل `Section 7 Monitor`
 
 ## ابزارها و فناوری‌ها
 
@@ -44,7 +51,7 @@
 4. CMake را اجرا کنید.
 5. پروژه را Build و سپس Run کنید.
 
-پروژه در محیط Qt 6 و MinGW نیز Build و اجرا شده است.
+نسخه‌های قبلی پروژه با Qt 6 و MinGW Build و اجرا شده‌اند. پس از اضافه شدن بخش هفتم، Build تمیز و آزمون دستی باید طبق فایل `SECTION07_APPLY_AND_TEST_FA.md` روی سیستم توسعه انجام شود.
 
 ### اجرا از خط فرمان
 
@@ -74,11 +81,16 @@ componentitem.h / componentitem.cpp
 wireitem.h / wireitem.cpp
 junctionitem.h / junctionitem.cpp
 basiccomponent.h / basiccomponent.cpp
+convertercomponents.h / convertercomponents.cpp
+firmwareloader.h / firmwareloader.cpp
+microcontrollercore.h / microcontrollercore.cpp
+advancedcomponent.h / advancedcomponent.cpp
 section05controller.h / section05controller.cpp
 section06controller.h / section06controller.cpp
+section07controller.h / section07controller.cpp
 ```
 
-هر بخش مسئولیت مشخصی دارد. برای نمونه، `CanvasView` رفتار بوم را کنترل می‌کند، `ComponentLibraryPanel` کتابخانه قطعات را می‌سازد، `CircuitGraph` اطلاعات اتصال‌ها را نگه می‌دارد و کنترلرهای بخش پنجم و ششم رابط بین مدل مدار و محیط گرافیکی هستند.
+هر بخش مسئولیت مشخصی دارد. برای نمونه، `CanvasView` رفتار بوم را کنترل می‌کند، `ComponentLibraryPanel` کتابخانه قطعات را می‌سازد، `CircuitGraph` اطلاعات اتصال‌ها را نگه می‌دارد و کنترلرهای بخش پنجم تا هفتم رابط بین مدل مدار و محیط گرافیکی هستند.
 
 ## شاخه‌های پروژه
 
@@ -89,6 +101,7 @@ section06controller.h / section06controller.cpp
 - `component-library`: کتابخانه قطعات
 - `feature/basic-components`: تعامل با قطعات و سیستم سیم‌کشی
 - `feature/simulation-components`: قطعات پایه و منطق شبیه‌سازی
+- `feature/advanced-components`: مبدل‌ها، MCU و Peripheralهای بخش هفتم
 
 ## مستندات بخش‌ها
 
@@ -98,6 +111,7 @@ section06controller.h / section06controller.cpp
 - [بخش چهارم: کتابخانه قطعات](SECTION04_README_FA.md)
 - [بخش پنجم: تعامل با قطعات و سیم‌کشی](SECTION05_README_FA.md)
 - [بخش ششم: قطعات پایه و شبیه‌سازی](SECTION06_README_FA.md)
+- [بخش هفتم: قطعات پیشرفته و میکروکنترلر](SECTION07_README_FA.md)
 
 ## نکته پایانی
 

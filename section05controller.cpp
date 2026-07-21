@@ -14,6 +14,7 @@
 #include <QGraphicsPathItem>
 #include <QGraphicsScene>
 #include <QKeyEvent>
+#include <QInputDialog>
 #include <QLineF>
 #include <QMainWindow>
 #include <QMenu>
@@ -215,9 +216,34 @@ void Section05Controller::createComponent(const QPointF &position)
         return;
     }
 
+    int converterResolution = 0;
+    if (definition->id == QStringLiteral("ADC") || definition->id == QStringLiteral("DAC"))
+    {
+        bool accepted = false;
+        converterResolution = QInputDialog::getInt(
+            m_window,
+            tr("%1 resolution").arg(definition->displayName),
+            tr("Number of digital bits:"),
+            4,
+            2,
+            12,
+            1,
+            &accepted);
+        if (!accepted)
+        {
+            setStatus(tr("Component placement canceled."), 2200);
+            return;
+        }
+    }
+
     const QVector<PinModel> pins = ComponentItem::pinsForType(definition->id);
     const QString modelId = m_graph.addComponent(definition->id, pins);
     auto *component = new ComponentItem(modelId, *definition, m_canvas->gridSpacing());
+    if (converterResolution > 0)
+    {
+        component->setComponentProperty(QStringLiteral("resolutionBits"), converterResolution);
+        m_graph.updateComponentPins(modelId, component->pins());
+    }
     component->setPos(m_canvas->snapToGrid(position));
     m_canvas->scene()->addItem(component);
     m_components.insert(modelId, component);

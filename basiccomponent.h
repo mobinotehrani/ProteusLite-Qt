@@ -19,6 +19,7 @@ enum class ComponentPropertyType
     Integer,
     Boolean,
     Text,
+    FilePath,
     Choice
 };
 
@@ -104,6 +105,10 @@ class Component
     virtual bool active() const;
     virtual QColor indicatorColor() const;
     virtual QVector<bool> segmentStates() const;
+    virtual QStringList displayLines() const;
+    virtual QVector<bool> keyStates() const;
+    virtual void pressKey(int row, int column);
+    virtual void releaseKey();
     virtual QVariantMap saveState() const;
     virtual void loadState(const QVariantMap &state);
 
@@ -124,6 +129,7 @@ class Component
                                              const QString &suffix = {});
     static ComponentProperty booleanProperty(const QString &key, const QString &label, bool value);
     static ComponentProperty textProperty(const QString &key, const QString &label, const QString &value);
+    static ComponentProperty fileProperty(const QString &key, const QString &label, const QString &value);
     static ComponentProperty choiceProperty(const QString &key,
                                             const QString &label,
                                             const QString &value,

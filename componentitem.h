@@ -55,6 +55,7 @@ class ComponentItem final : public QGraphicsObject
 
     Component *componentModel();
     const Component *componentModel() const;
+    bool setComponentProperty(const QString &key, const QVariant &value);
     ComponentStepResult updateSimulation(const QVector<std::optional<double>> &pinVoltages,
                                          double timeSeconds);
     QVariantMap componentState() const;
@@ -97,6 +98,11 @@ class ComponentItem final : public QGraphicsObject
     void drawLed(QPainter *painter) const;
     void drawSevenSegment(QPainter *painter) const;
     void drawLogicGate(QPainter *painter) const;
+    void drawConverter(QPainter *painter) const;
+    void drawMicrocontroller(QPainter *painter) const;
+    void drawExternalMemory(QPainter *painter) const;
+    void drawLcd(QPainter *painter) const;
+    void drawKeypad(QPainter *painter) const;
     void drawGenericBody(QPainter *painter) const;
     void drawPinLabels(QPainter *painter) const;
 

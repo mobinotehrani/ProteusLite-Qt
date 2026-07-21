@@ -7,9 +7,12 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QGraphicsSceneContextMenuEvent>
 #include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
+#include <QHBoxLayout>
 #include <QHash>
 #include <QLabel>
 #include <QLineEdit>
@@ -19,6 +22,7 @@
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QSpinBox>
+#include <QPushButton>
 
 #include <algorithm>
 #include <cmath>
@@ -53,7 +57,13 @@ QVariant editorValue(QWidget *editor, ComponentPropertyType type)
         return qobject_cast<QCheckBox *>(editor)->isChecked();
     if (type == ComponentPropertyType::Choice)
         return qobject_cast<QComboBox *>(editor)->currentText();
-    return qobject_cast<QLineEdit *>(editor)->text().trimmed();
+    if (type == ComponentPropertyType::FilePath)
+    {
+        auto *pathEdit = editor->findChild<QLineEdit *>(QStringLiteral("PathEdit"));
+        return pathEdit ? QVariant(pathEdit->text().trimmed()) : QVariant();
+    }
+    auto *lineEdit = qobject_cast<QLineEdit *>(editor);
+    return lineEdit ? QVariant(lineEdit->text().trimmed()) : QVariant();
 }
 }
 
@@ -86,13 +96,15 @@ int ComponentItem::type() const
 QRectF ComponentItem::boundingRect() const
 {
     if (m_definition.id == QStringLiteral("MCU"))
-        return QRectF(-86.0, -70.0, 172.0, 140.0);
+        return QRectF(-108.0, -92.0, 216.0, 184.0);
+    if (m_definition.id == QStringLiteral("EEPROM"))
+        return QRectF(-98.0, -82.0, 196.0, 164.0);
     if (m_definition.id == QStringLiteral("LCD16x2"))
-        return QRectF(-94.0, -62.0, 188.0, 124.0);
+        return QRectF(-106.0, -76.0, 212.0, 152.0);
     if (m_definition.id == QStringLiteral("Keypad4x4"))
-        return QRectF(-78.0, -68.0, 156.0, 136.0);
+        return QRectF(-88.0, -82.0, 176.0, 164.0);
     if (m_definition.id == QStringLiteral("ADC") || m_definition.id == QStringLiteral("DAC"))
-        return QRectF(-80.0, -62.0, 160.0, 124.0);
+        return QRectF(-94.0, -74.0, 188.0, 148.0);
     if (m_definition.id == QStringLiteral("SevenSegment"))
         return QRectF(-78.0, -66.0, 156.0, 132.0);
     return QRectF(-70.0, -58.0, 140.0, 116.0);
@@ -129,15 +141,42 @@ void ComponentItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *opt
     referenceFont.setBold(true);
     painter->setFont(referenceFont);
     painter->setPen(QColor(15, 23, 42));
-    painter->drawText(QRectF(-62.0, 35.0, 124.0, 16.0), Qt::AlignCenter, m_reference);
+
+    qreal referenceY = 35.0;
+    qreal captionWidth = 124.0;
+    if (m_definition.id == QStringLiteral("MCU"))
+    {
+        referenceY = 66.0;
+        captionWidth = 178.0;
+    }
+    else if (m_definition.id == QStringLiteral("EEPROM") ||
+             m_definition.id == QStringLiteral("Keypad4x4"))
+    {
+        referenceY = 56.0;
+        captionWidth = 158.0;
+    }
+    else if (m_definition.id == QStringLiteral("LCD16x2") ||
+             m_definition.id == QStringLiteral("ADC") || m_definition.id == QStringLiteral("DAC"))
+    {
+        referenceY = 48.0;
+        captionWidth = 170.0;
+    }
+
+    painter->drawText(QRectF(-captionWidth / 2.0, referenceY, captionWidth, 16.0),
+                      Qt::AlignCenter,
+                      m_reference);
 
     referenceFont.setPointSize(7);
     referenceFont.setBold(false);
     painter->setFont(referenceFont);
     const QString displayValue = runtimeText();
-    const QString shortValue =
-        displayValue.size() > 30 ? displayValue.left(29) + QChar(0x2026) : displayValue;
-    painter->drawText(QRectF(-66.0, 48.0, 132.0, 14.0), Qt::AlignCenter, shortValue);
+    const int maximumCharacters = captionWidth > 150.0 ? 46 : 30;
+    const QString shortValue = displayValue.size() > maximumCharacters
+                                   ? displayValue.left(maximumCharacters - 1) + QChar(0x2026)
+                                   : displayValue;
+    painter->drawText(QRectF(-captionWidth / 2.0, referenceY + 13.0, captionWidth, 14.0),
+                      Qt::AlignCenter,
+                      shortValue);
 }
 
 QString ComponentItem::modelId() const
@@ -272,6 +311,32 @@ void ComponentItem::openProperties()
             check->setChecked(property.value.toBool());
             editor = check;
         }
+        else if (property.type == ComponentPropertyType::FilePath)
+        {
+            auto *container = new QWidget(&dialog);
+            auto *row = new QHBoxLayout(container);
+            row->setContentsMargins(0, 0, 0, 0);
+            row->setSpacing(6);
+
+            auto *pathEdit = new QLineEdit(property.value.toString(), container);
+            pathEdit->setObjectName(QStringLiteral("PathEdit"));
+            pathEdit->setPlaceholderText(tr("Select an Intel HEX firmware file"));
+            auto *browseButton = new QPushButton(tr("Browse..."), container);
+            connect(browseButton, &QPushButton::clicked, &dialog, [pathEdit, &dialog]()
+                    {
+                        const QString initialDirectory = QFileInfo(pathEdit->text()).absolutePath();
+                        const QString selected = QFileDialog::getOpenFileName(
+                            &dialog,
+                            QObject::tr("Choose firmware"),
+                            initialDirectory,
+                            QObject::tr("Intel HEX files (*.hex *.ihx);;All files (*.*)"));
+                        if (!selected.isEmpty())
+                            pathEdit->setText(selected);
+                    });
+            row->addWidget(pathEdit, 1);
+            row->addWidget(browseButton);
+            editor = container;
+        }
         else if (property.type == ComponentPropertyType::Choice)
         {
             auto *combo = new QComboBox(&dialog);
@@ -324,6 +389,17 @@ Component *ComponentItem::componentModel()
 const Component *ComponentItem::componentModel() const
 {
     return m_component.get();
+}
+
+bool ComponentItem::setComponentProperty(const QString &key, const QVariant &value)
+{
+    if (!m_component || !m_component->setProperty(key, value))
+        return false;
+
+    refreshPins(false);
+    syncValueText();
+    update();
+    return true;
 }
 
 ComponentStepResult ComponentItem::updateSimulation(const QVector<std::optional<double>> &pinVoltages,
@@ -404,7 +480,31 @@ void ComponentItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
     if (event->button() == Qt::LeftButton)
     {
         m_pressScenePosition = event->scenePos();
-        if (m_definition.id == QStringLiteral("PushButton"))
+        if (m_definition.id == QStringLiteral("Keypad4x4"))
+        {
+            const QRectF keysRect(-42.0, -44.0, 84.0, 88.0);
+            if (keysRect.contains(event->pos()))
+            {
+                const int column = std::clamp(
+                    static_cast<int>((event->pos().x() - keysRect.left()) / (keysRect.width() / 4.0)),
+                    0,
+                    3);
+                const int row = std::clamp(
+                    static_cast<int>((event->pos().y() - keysRect.top()) / (keysRect.height() / 4.0)),
+                    0,
+                    3);
+                m_interactionPressed = true;
+                m_component->pressKey(row, column);
+                setSelected(true);
+                syncValueText();
+                update();
+                emit stateChanged();
+                emit edited();
+                event->accept();
+                return;
+            }
+        }
+        else if (m_definition.id == QStringLiteral("PushButton"))
         {
             m_interactionPressed = true;
             m_component->pointerPressed();
@@ -423,6 +523,19 @@ void ComponentItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void ComponentItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
+    if (event->button() == Qt::LeftButton && m_interactionPressed &&
+        m_definition.id == QStringLiteral("Keypad4x4"))
+    {
+        m_component->releaseKey();
+        m_interactionPressed = false;
+        syncValueText();
+        update();
+        emit stateChanged();
+        emit edited();
+        event->accept();
+        return;
+    }
+
     QGraphicsObject::mouseReleaseEvent(event);
 
     if (event->button() != Qt::LeftButton || !m_interactionPressed)
@@ -590,53 +703,88 @@ QVector<QPointF> ComponentItem::pinPositionsForType(const QString &type, int cou
         return result;
     }
     if (type == QStringLiteral("ADC"))
-        return {QPointF(-64.0, -28.0),
-                QPointF(-64.0, 0.0),
-                QPointF(-64.0, 28.0),
-                QPointF(64.0, -30.0),
-                QPointF(64.0, -10.0),
-                QPointF(64.0, 10.0),
-                QPointF(64.0, 30.0)};
+    {
+        QVector<QPointF> result{QPointF(-70.0, -30.0),
+                                QPointF(-70.0, 0.0),
+                                QPointF(-70.0, 30.0)};
+        const int outputCount = std::max(0, count - 3);
+        for (int bit = 0; bit < outputCount; ++bit)
+        {
+            const qreal y = outputCount == 1
+                                ? 0.0
+                                : -42.0 + 84.0 * static_cast<qreal>(bit) /
+                                              static_cast<qreal>(outputCount - 1);
+            result.append(QPointF(70.0, y));
+        }
+        return result;
+    }
     if (type == QStringLiteral("DAC"))
-        return {QPointF(-64.0, -30.0),
-                QPointF(-64.0, -10.0),
-                QPointF(-64.0, 10.0),
-                QPointF(-64.0, 30.0),
-                QPointF(64.0, 0.0),
-                QPointF(64.0, -28.0),
-                QPointF(64.0, 28.0)};
+    {
+        QVector<QPointF> result;
+        const int inputCount = std::max(0, count - 3);
+        for (int bit = 0; bit < inputCount; ++bit)
+        {
+            const qreal y = inputCount == 1
+                                ? 0.0
+                                : -42.0 + 84.0 * static_cast<qreal>(bit) /
+                                              static_cast<qreal>(inputCount - 1);
+            result.append(QPointF(-70.0, y));
+        }
+        result.append(QPointF(-20.0, 50.0));
+        result.append(QPointF(-20.0, -50.0));
+        result.append(QPointF(70.0, 0.0));
+        return result;
+    }
     if (type == QStringLiteral("MCU"))
     {
         QVector<QPointF> result;
-        for (int i = 0; i < 6; ++i)
-            result.append(QPointF(-74.0, -50.0 + i * 20.0));
-        for (int i = 0; i < 6; ++i)
-            result.append(QPointF(74.0, -50.0 + i * 20.0));
+        for (int bit = 0; bit < 8; ++bit)
+            result.append(QPointF(-88.0, -56.0 + bit * 16.0));
+        for (int bit = 0; bit < 8; ++bit)
+            result.append(QPointF(88.0, -56.0 + bit * 16.0));
+        for (int bit = 0; bit < 8; ++bit)
+            result.append(QPointF(-56.0 + bit * 16.0, 70.0));
+        result.append(QPointF(-24.0, -70.0));
+        result.append(QPointF(24.0, -70.0));
         return result;
     }
     if (type == QStringLiteral("EEPROM"))
-        return {QPointF(-62.0, -28.0),
-                QPointF(-62.0, 0.0),
-                QPointF(-62.0, 28.0),
-                QPointF(62.0, -28.0),
-                QPointF(62.0, 0.0),
-                QPointF(62.0, 28.0)};
-    if (type == QStringLiteral("LCD16x2"))
     {
         QVector<QPointF> result;
-        for (int i = 0; i < count; ++i)
-            result.append(QPointF(-70.0 + i * 20.0, 46.0));
+        for (int bit = 0; bit < 8; ++bit)
+            result.append(QPointF(-76.0, -49.0 + bit * 14.0));
+        for (int bit = 0; bit < 8; ++bit)
+            result.append(QPointF(76.0, -49.0 + bit * 14.0));
+        result.append(QPointF(-36.0, 60.0));
+        result.append(QPointF(0.0, 60.0));
+        result.append(QPointF(36.0, 60.0));
+        return result;
+    }
+    if (type == QStringLiteral("LCD16x2"))
+    {
+        QVector<QPointF> result{QPointF(-92.0, -24.0),
+                                QPointF(-92.0, 0.0),
+                                QPointF(-92.0, 24.0)};
+        const int busCount = std::max(0, count - 3);
+        for (int bit = 0; bit < busCount; ++bit)
+        {
+            const qreal x = busCount == 1
+                                ? 0.0
+                                : -70.0 + 140.0 * static_cast<qreal>(bit) /
+                                               static_cast<qreal>(busCount - 1);
+            result.append(QPointF(x, 56.0));
+        }
         return result;
     }
     if (type == QStringLiteral("Keypad4x4"))
-        return {QPointF(-62.0, -30.0),
-                QPointF(-62.0, -10.0),
-                QPointF(-62.0, 10.0),
-                QPointF(-62.0, 30.0),
-                QPointF(62.0, -30.0),
-                QPointF(62.0, -10.0),
-                QPointF(62.0, 10.0),
-                QPointF(62.0, 30.0)};
+        return {QPointF(-72.0, -36.0),
+                QPointF(-72.0, -12.0),
+                QPointF(-72.0, 12.0),
+                QPointF(-72.0, 36.0),
+                QPointF(72.0, -36.0),
+                QPointF(72.0, -12.0),
+                QPointF(72.0, 12.0),
+                QPointF(72.0, 36.0)};
     if (type == QStringLiteral("Oscilloscope"))
         return {QPointF(-62.0, -20.0), QPointF(-62.0, 20.0), QPointF(62.0, 40.0)};
     if (type == QStringLiteral("Potentiometer"))
@@ -832,6 +980,32 @@ void ComponentItem::drawSymbol(QPainter *painter) const
         return;
     }
 
+    if (type == QStringLiteral("ADC") || type == QStringLiteral("DAC"))
+    {
+        drawConverter(painter);
+        return;
+    }
+    if (type == QStringLiteral("MCU"))
+    {
+        drawMicrocontroller(painter);
+        return;
+    }
+    if (type == QStringLiteral("EEPROM"))
+    {
+        drawExternalMemory(painter);
+        return;
+    }
+    if (type == QStringLiteral("LCD16x2"))
+    {
+        drawLcd(painter);
+        return;
+    }
+    if (type == QStringLiteral("Keypad4x4"))
+    {
+        drawKeypad(painter);
+        return;
+    }
+
     drawGenericBody(painter);
 }
 
@@ -975,27 +1149,237 @@ void ComponentItem::drawLogicGate(QPainter *painter) const
     }
 }
 
+void ComponentItem::drawConverter(QPainter *painter) const
+{
+    const QRectF body(-52.0, -48.0, 104.0, 96.0);
+    painter->save();
+    painter->setBrush(QColor(248, 250, 252));
+    painter->setPen(QPen(QColor(30, 64, 175), 1.8));
+    painter->drawRoundedRect(body, 7.0, 7.0);
+
+    QFont titleFont = painter->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(11);
+    painter->setFont(titleFont);
+    painter->setPen(QColor(15, 23, 42));
+    painter->drawText(QRectF(-45.0, -21.0, 90.0, 22.0),
+                      Qt::AlignCenter,
+                      m_definition.id);
+
+    QFont detailFont = titleFont;
+    detailFont.setBold(false);
+    detailFont.setPointSize(7);
+    painter->setFont(detailFont);
+    painter->setPen(QColor(71, 85, 105));
+    painter->drawText(QRectF(-45.0, 3.0, 90.0, 24.0),
+                      Qt::AlignCenter | Qt::TextWordWrap,
+                      m_component ? m_component->valueText() : m_value);
+
+    painter->setPen(QPen(QColor(30, 64, 175), 1.3));
+    for (const PinModel &pin : m_pins)
+    {
+        const QPointF point = pin.localPosition;
+        QPointF inner = point;
+        if (point.x() < body.left())
+            inner.setX(body.left());
+        else if (point.x() > body.right())
+            inner.setX(body.right());
+        else if (point.y() < body.top())
+            inner.setY(body.top());
+        else if (point.y() > body.bottom())
+            inner.setY(body.bottom());
+        painter->drawLine(inner, point);
+    }
+    painter->restore();
+}
+
+void ComponentItem::drawMicrocontroller(QPainter *painter) const
+{
+    const QRectF body(-64.0, -58.0, 128.0, 116.0);
+    painter->save();
+    painter->setPen(QPen(QColor(30, 64, 175), 1.8));
+    painter->setBrush(QColor(241, 245, 249));
+    painter->drawRoundedRect(body, 6.0, 6.0);
+
+    QFont titleFont = painter->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(10);
+    painter->setFont(titleFont);
+    painter->setPen(QColor(15, 23, 42));
+    painter->drawText(QRectF(-54.0, -20.0, 108.0, 22.0),
+                      Qt::AlignCenter,
+                      QStringLiteral("Educational MCU"));
+
+    QFont detailFont = titleFont;
+    detailFont.setBold(false);
+    detailFont.setPointSize(7);
+    painter->setFont(detailFont);
+    painter->setPen(QColor(71, 85, 105));
+    painter->drawText(QRectF(-54.0, 5.0, 108.0, 34.0),
+                      Qt::AlignCenter | Qt::TextWordWrap,
+                      m_component ? m_component->valueText() : m_value);
+
+    painter->setPen(QPen(QColor(30, 64, 175), 1.2));
+    for (const PinModel &pin : m_pins)
+    {
+        const QPointF point = pin.localPosition;
+        QPointF inner = point;
+        if (point.x() < body.left())
+            inner.setX(body.left());
+        else if (point.x() > body.right())
+            inner.setX(body.right());
+        else if (point.y() < body.top())
+            inner.setY(body.top());
+        else
+            inner.setY(body.bottom());
+        painter->drawLine(inner, point);
+    }
+    painter->restore();
+}
+
+void ComponentItem::drawExternalMemory(QPainter *painter) const
+{
+    const QRectF body(-54.0, -52.0, 108.0, 104.0);
+    painter->save();
+    painter->setBrush(QColor(248, 250, 252));
+    painter->setPen(QPen(QColor(30, 64, 175), 1.8));
+    painter->drawRoundedRect(body, 6.0, 6.0);
+
+    QFont titleFont = painter->font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(10);
+    painter->setFont(titleFont);
+    painter->setPen(QColor(15, 23, 42));
+    painter->drawText(QRectF(-47.0, -18.0, 94.0, 20.0), Qt::AlignCenter,
+                      QStringLiteral("RAM / EEPROM"));
+
+    QFont detailFont = titleFont;
+    detailFont.setBold(false);
+    detailFont.setPointSize(7);
+    painter->setFont(detailFont);
+    painter->setPen(QColor(71, 85, 105));
+    painter->drawText(QRectF(-47.0, 5.0, 94.0, 30.0),
+                      Qt::AlignCenter | Qt::TextWordWrap,
+                      m_component ? m_component->valueText() : m_value);
+
+    painter->setPen(QPen(QColor(30, 64, 175), 1.2));
+    for (const PinModel &pin : m_pins)
+    {
+        const QPointF point = pin.localPosition;
+        QPointF inner = point;
+        if (point.x() < body.left())
+            inner.setX(body.left());
+        else if (point.x() > body.right())
+            inner.setX(body.right());
+        else
+            inner.setY(body.bottom());
+        painter->drawLine(inner, point);
+    }
+    painter->restore();
+}
+
+void ComponentItem::drawLcd(QPainter *painter) const
+{
+    const QRectF body(-80.0, -44.0, 160.0, 82.0);
+    const QRectF screen(-68.0, -31.0, 136.0, 50.0);
+    painter->save();
+    painter->setPen(QPen(QColor(30, 64, 175), 1.8));
+    painter->setBrush(QColor(226, 232, 240));
+    painter->drawRoundedRect(body, 6.0, 6.0);
+
+    painter->setPen(QPen(QColor(20, 83, 45), 1.2));
+    painter->setBrush(m_component && m_component->active() ? QColor(187, 247, 208)
+                                                            : QColor(203, 213, 225));
+    painter->drawRoundedRect(screen, 3.0, 3.0);
+
+    QStringList lines = m_component ? m_component->displayLines() : QStringList{};
+    while (lines.size() < 2)
+        lines.append(QString());
+    QFont lcdFont(QStringLiteral("Consolas"));
+    lcdFont.setStyleHint(QFont::Monospace);
+    lcdFont.setPointSize(8);
+    painter->setFont(lcdFont);
+    painter->setPen(QColor(20, 83, 45));
+    painter->drawText(QRectF(-62.0, -25.0, 124.0, 18.0),
+                      Qt::AlignLeft | Qt::AlignVCenter,
+                      lines.value(0).left(16));
+    painter->drawText(QRectF(-62.0, -5.0, 124.0, 18.0),
+                      Qt::AlignLeft | Qt::AlignVCenter,
+                      lines.value(1).left(16));
+
+    painter->setPen(QPen(QColor(30, 64, 175), 1.2));
+    for (const PinModel &pin : m_pins)
+    {
+        const QPointF point = pin.localPosition;
+        QPointF inner = point;
+        if (point.x() < body.left())
+            inner.setX(body.left());
+        else
+            inner.setY(body.bottom());
+        painter->drawLine(inner, point);
+    }
+    painter->restore();
+}
+
+void ComponentItem::drawKeypad(QPainter *painter) const
+{
+    const QRectF body(-50.0, -50.0, 100.0, 100.0);
+    const QRectF keysRect(-42.0, -44.0, 84.0, 88.0);
+    static const QStringList labels{QStringLiteral("1"), QStringLiteral("2"), QStringLiteral("3"),
+                                    QStringLiteral("A"), QStringLiteral("4"), QStringLiteral("5"),
+                                    QStringLiteral("6"), QStringLiteral("B"), QStringLiteral("7"),
+                                    QStringLiteral("8"), QStringLiteral("9"), QStringLiteral("C"),
+                                    QStringLiteral("*"), QStringLiteral("0"), QStringLiteral("#"),
+                                    QStringLiteral("D")};
+
+    painter->save();
+    painter->setPen(QPen(QColor(30, 64, 175), 1.8));
+    painter->setBrush(QColor(241, 245, 249));
+    painter->drawRoundedRect(body, 6.0, 6.0);
+
+    const QVector<bool> states = m_component ? m_component->keyStates() : QVector<bool>{};
+    QFont buttonFont = painter->font();
+    buttonFont.setPointSize(8);
+    buttonFont.setBold(true);
+    painter->setFont(buttonFont);
+    for (int row = 0; row < 4; ++row)
+    {
+        for (int column = 0; column < 4; ++column)
+        {
+            const int index = row * 4 + column;
+            QRectF key(keysRect.left() + column * keysRect.width() / 4.0 + 2.0,
+                       keysRect.top() + row * keysRect.height() / 4.0 + 2.0,
+                       keysRect.width() / 4.0 - 4.0,
+                       keysRect.height() / 4.0 - 4.0);
+            painter->setPen(QPen(QColor(71, 85, 105), 1.0));
+            painter->setBrush(states.value(index) ? QColor(191, 219, 254) : QColor(255, 255, 255));
+            painter->drawRoundedRect(key, 3.0, 3.0);
+            painter->setPen(QColor(15, 23, 42));
+            painter->drawText(key, Qt::AlignCenter, labels.value(index));
+        }
+    }
+
+    painter->setPen(QPen(QColor(30, 64, 175), 1.2));
+    for (const PinModel &pin : m_pins)
+    {
+        QPointF inner = pin.localPosition;
+        inner.setX(pin.localPosition.x() < 0.0 ? body.left() : body.right());
+        painter->drawLine(inner, pin.localPosition);
+    }
+    painter->restore();
+}
+
 void ComponentItem::drawGenericBody(QPainter *painter) const
 {
     const QString type = m_definition.id;
     QRectF body(-38.0, -30.0, 76.0, 60.0);
-    if (type == QStringLiteral("MCU"))
-        body = QRectF(-58.0, -54.0, 116.0, 108.0);
-    else if (type == QStringLiteral("LCD16x2"))
-        body = QRectF(-80.0, -42.0, 160.0, 78.0);
-    else if (type == QStringLiteral("Keypad4x4"))
-        body = QRectF(-46.0, -52.0, 92.0, 104.0);
-    else if (type == QStringLiteral("ADC") || type == QStringLiteral("DAC"))
-        body = QRectF(-50.0, -44.0, 100.0, 88.0);
 
     painter->setBrush(QColor(248, 250, 252));
     painter->drawRoundedRect(body, 7.0, 7.0);
     painter->setBrush(Qt::NoBrush);
 
     QString label = m_definition.displayName;
-    if (type == QStringLiteral("LCD16x2"))
-        label = QStringLiteral("LCD 16x2\n") + m_value.left(16);
-    else if (type == QStringLiteral("DFlipFlop"))
+    if (type == QStringLiteral("DFlipFlop"))
         label = QStringLiteral("D Flip-Flop\nQ on rising CLK");
     painter->drawText(body.adjusted(5.0, 5.0, -5.0, -5.0), Qt::AlignCenter | Qt::TextWordWrap, label);
 
