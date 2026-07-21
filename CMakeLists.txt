@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ProteusPro VERSION 0.6 LANGUAGES CXX)
+project(ProteusPro VERSION 0.7 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -32,6 +32,14 @@ add_executable(ProteusPro
     circuitmodel.h
     basiccomponent.cpp
     basiccomponent.h
+    convertercomponents.cpp
+    convertercomponents.h
+    firmwareloader.cpp
+    firmwareloader.h
+    microcontrollercore.cpp
+    microcontrollercore.h
+    advancedcomponent.cpp
+    advancedcomponent.h
     componentitem.cpp
     componentitem.h
     wireitem.cpp
@@ -42,6 +50,8 @@ add_executable(ProteusPro
     section05controller.h
     section06controller.cpp
     section06controller.h
+    section07controller.cpp
+    section07controller.h
 )
 
 target_link_libraries(ProteusPro PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

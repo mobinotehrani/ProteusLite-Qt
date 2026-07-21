@@ -1,5 +1,7 @@
 #include "basiccomponent.h"
 
+#include "advancedcomponent.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -161,6 +163,26 @@ QVector<bool> Component::segmentStates() const
     return {};
 }
 
+QStringList Component::displayLines() const
+{
+    return {};
+}
+
+QVector<bool> Component::keyStates() const
+{
+    return {};
+}
+
+void Component::pressKey(int row, int column)
+{
+    Q_UNUSED(row);
+    Q_UNUSED(column);
+}
+
+void Component::releaseKey()
+{
+}
+
 QVariantMap Component::saveState() const
 {
     return {};
@@ -209,6 +231,11 @@ ComponentProperty Component::booleanProperty(const QString &key, const QString &
 ComponentProperty Component::textProperty(const QString &key, const QString &label, const QString &value)
 {
     return {key, label, ComponentPropertyType::Text, value, 0.0, 0.0, 1.0, {}, {}};
+}
+
+ComponentProperty Component::fileProperty(const QString &key, const QString &label, const QString &value)
+{
+    return {key, label, ComponentPropertyType::FilePath, value, 0.0, 0.0, 1.0, {}, {}};
 }
 
 ComponentProperty Component::choiceProperty(const QString &key,
@@ -1618,54 +1645,6 @@ QVector<ComponentPinDefinition> GenericComponent::pinDefinitions() const
         return {{QStringLiteral("CH1"), PinDirection::Input},
                 {QStringLiteral("CH2"), PinDirection::Input},
                 {QStringLiteral("GND"), PinDirection::Power}};
-    if (m_type == QStringLiteral("ADC"))
-        return {{QStringLiteral("VIN"), PinDirection::Input},
-                {QStringLiteral("VREF-"), PinDirection::Power},
-                {QStringLiteral("VREF+"), PinDirection::Power},
-                {QStringLiteral("D0"), PinDirection::Output},
-                {QStringLiteral("D1"), PinDirection::Output},
-                {QStringLiteral("D2"), PinDirection::Output},
-                {QStringLiteral("D3"), PinDirection::Output}};
-    if (m_type == QStringLiteral("DAC"))
-        return {{QStringLiteral("D0"), PinDirection::Input},
-                {QStringLiteral("D1"), PinDirection::Input},
-                {QStringLiteral("D2"), PinDirection::Input},
-                {QStringLiteral("D3"), PinDirection::Input},
-                {QStringLiteral("VOUT"), PinDirection::Output},
-                {QStringLiteral("VREF+"), PinDirection::Power},
-                {QStringLiteral("VREF-"), PinDirection::Power}};
-    if (m_type == QStringLiteral("MCU"))
-    {
-        QVector<ComponentPinDefinition> result;
-        for (int i = 0; i < 6; ++i)
-            result.append({QStringLiteral("PA%1").arg(i), PinDirection::Passive});
-        for (int i = 0; i < 6; ++i)
-            result.append({QStringLiteral("PB%1").arg(i), PinDirection::Passive});
-        return result;
-    }
-    if (m_type == QStringLiteral("EEPROM"))
-        return {{QStringLiteral("A0"), PinDirection::Passive},
-                {QStringLiteral("A1"), PinDirection::Passive},
-                {QStringLiteral("A2"), PinDirection::Passive},
-                {QStringLiteral("D0"), PinDirection::Passive},
-                {QStringLiteral("D1"), PinDirection::Passive},
-                {QStringLiteral("D2"), PinDirection::Passive}};
-    if (m_type == QStringLiteral("LCD16x2"))
-    {
-        QVector<ComponentPinDefinition> result;
-        for (int i = 0; i < 8; ++i)
-            result.append({QStringLiteral("D%1").arg(i), PinDirection::Input});
-        return result;
-    }
-    if (m_type == QStringLiteral("Keypad4x4"))
-        return {{QStringLiteral("R1"), PinDirection::Passive},
-                {QStringLiteral("R2"), PinDirection::Passive},
-                {QStringLiteral("R3"), PinDirection::Passive},
-                {QStringLiteral("R4"), PinDirection::Passive},
-                {QStringLiteral("C1"), PinDirection::Passive},
-                {QStringLiteral("C2"), PinDirection::Passive},
-                {QStringLiteral("C3"), PinDirection::Passive},
-                {QStringLiteral("C4"), PinDirection::Passive}};
     return twoPassivePins();
 }
 
@@ -1730,5 +1709,7 @@ std::unique_ptr<Component> ComponentFactory::create(const QString &type)
         return std::make_unique<LogicGateComponent>(type);
     if (type == QStringLiteral("DFlipFlop"))
         return std::make_unique<DFlipFlopComponent>();
+    if (std::unique_ptr<Component> advanced = createAdvancedComponent(type))
+        return advanced;
     return std::make_unique<GenericComponent>(type);
 }
