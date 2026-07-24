@@ -183,6 +183,16 @@ void Component::releaseKey()
 {
 }
 
+bool Component::adjustInteractiveValue(double delta)
+{
+    Q_UNUSED(delta);
+    return false;
+}
+
+void Component::prepareManualStep()
+{
+}
+
 QVariantMap Component::saveState() const
 {
     return {};
@@ -853,6 +863,105 @@ QVariantMap InductorComponent::saveState() const
 void InductorComponent::loadState(const QVariantMap &state)
 {
     m_current = state.value(QStringLiteral("current"), m_initialCurrent).toDouble();
+}
+
+QString PotentiometerComponent::typeId() const
+{
+    return QStringLiteral("Potentiometer");
+}
+
+QVector<ComponentPinDefinition> PotentiometerComponent::pinDefinitions() const
+{
+    return {{QStringLiteral("A"), PinDirection::Input},
+            {QStringLiteral("W"), PinDirection::Output},
+            {QStringLiteral("B"), PinDirection::Input}};
+}
+
+QVector<ComponentProperty> PotentiometerComponent::editableProperties() const
+{
+    return {numberProperty(QStringLiteral("resistance"),
+                           QStringLiteral("Total resistance"),
+                           m_totalResistance,
+                           1.0,
+                           1000000000.0,
+                           100.0,
+                           QStringLiteral(" ohm")),
+            numberProperty(QStringLiteral("wiperPercent"),
+                           QStringLiteral("Wiper position"),
+                           m_wiperPercent,
+                           0.0,
+                           100.0,
+                           1.0,
+                           QStringLiteral(" %"))};
+}
+
+bool PotentiometerComponent::setProperty(const QString &key, const QVariant &value)
+{
+    if (key == QStringLiteral("resistance"))
+    {
+        m_totalResistance = std::clamp(value.toDouble(), 1.0, 1000000000.0);
+        return true;
+    }
+    if (key == QStringLiteral("wiperPercent"))
+    {
+        m_wiperPercent = std::clamp(value.toDouble(), 0.0, 100.0);
+        return true;
+    }
+    return false;
+}
+
+QVariant PotentiometerComponent::property(const QString &key) const
+{
+    if (key == QStringLiteral("resistance"))
+        return m_totalResistance;
+    if (key == QStringLiteral("wiperPercent"))
+        return m_wiperPercent;
+    return {};
+}
+
+QString PotentiometerComponent::valueText() const
+{
+    return QStringLiteral("%1 ohm, %2%")
+        .arg(compactNumber(m_totalResistance), compactNumber(m_wiperPercent));
+}
+
+QString PotentiometerComponent::runtimeText() const
+{
+    const QString voltage = m_wiperVoltage.has_value()
+                                ? QStringLiteral("W=%1 V").arg(compactNumber(*m_wiperVoltage))
+                                : QStringLiteral("W=undefined");
+    return QStringLiteral("%1, %2").arg(valueText(), voltage);
+}
+
+ComponentStepResult PotentiometerComponent::step(
+    const QVector<std::optional<double>> &pinVoltages,
+    double timeSeconds)
+{
+    Q_UNUSED(timeSeconds);
+    ComponentStepResult result = emptyResult(3);
+    const std::optional<double> terminalA = pinVoltage(pinVoltages, 0);
+    const std::optional<double> terminalB = pinVoltage(pinVoltages, 2);
+    if (!terminalA.has_value() || !terminalB.has_value())
+    {
+        m_wiperVoltage.reset();
+        result.warnings.append(QStringLiteral("Potentiometer end terminals A and B must both be driven."));
+        return result;
+    }
+
+    const double ratio = m_wiperPercent / 100.0;
+    m_wiperVoltage = *terminalA + (*terminalB - *terminalA) * ratio;
+    result.drivenPins[1] = true;
+    result.pinVoltages[1] = m_wiperVoltage;
+    return result;
+}
+
+bool PotentiometerComponent::adjustInteractiveValue(double delta)
+{
+    const double next = std::clamp(m_wiperPercent + delta, 0.0, 100.0);
+    if (qFuzzyCompare(next + 1.0, m_wiperPercent + 1.0))
+        return false;
+    m_wiperPercent = next;
+    return true;
 }
 
 QString SwitchComponent::typeId() const
@@ -1695,6 +1804,8 @@ std::unique_ptr<Component> ComponentFactory::create(const QString &type)
         return std::make_unique<CapacitorComponent>();
     if (type == QStringLiteral("Inductor"))
         return std::make_unique<InductorComponent>();
+    if (type == QStringLiteral("Potentiometer"))
+        return std::make_unique<PotentiometerComponent>();
     if (type == QStringLiteral("Switch"))
         return std::make_unique<SwitchComponent>();
     if (type == QStringLiteral("PushButton"))

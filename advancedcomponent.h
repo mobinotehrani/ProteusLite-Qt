@@ -20,6 +20,7 @@ class MicrocontrollerComponent final : public Component
     ComponentStepResult step(const QVector<std::optional<double>> &pinVoltages,
                              double timeSeconds) override;
     bool active() const override;
+    void prepareManualStep() override;
     QVariantMap saveState() const override;
     void loadState(const QVariantMap &state) override;
 
@@ -40,6 +41,8 @@ class MicrocontrollerComponent final : public Component
     bool m_requirePower{true};
     double m_lastEvaluationTime{-1.0};
     double m_cycleRemainder{0.0};
+    bool m_manualInstructionRequested{false};
+    double m_manualInstructionTime{-1.0};
     EducationalMcuCore m_core;
 };
 

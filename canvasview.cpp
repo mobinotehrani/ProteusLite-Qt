@@ -1,5 +1,7 @@
 #include "canvasview.h"
 
+#include "componentitem.h"
+
 #include <QColor>
 #include <QEvent>
 #include <QFrame>
@@ -263,14 +265,27 @@ void CanvasView::drawForeground(QPainter *painter, const QRectF &)
 
 void CanvasView::wheelEvent(QWheelEvent *event)
 {
-    if (event->angleDelta().y() == 0)
+    const int wheelDelta = event->angleDelta().y();
+    if (wheelDelta == 0)
     {
         QGraphicsView::wheelEvent(event);
         return;
     }
 
-    updateCursorPosition(wheelPosition(event));
-    zoomBy(event->angleDelta().y() > 0 ? ZoomStep : 1.0 / ZoomStep);
+    const QPoint position = wheelPosition(event);
+    if (auto *component = qgraphicsitem_cast<ComponentItem *>(itemAt(position)))
+    {
+        const double change = wheelDelta > 0 ? 5.0 : -5.0;
+        if (component->adjustInteractiveValue(change))
+        {
+            updateCursorPosition(position);
+            event->accept();
+            return;
+        }
+    }
+
+    updateCursorPosition(position);
+    zoomBy(wheelDelta > 0 ? ZoomStep : 1.0 / ZoomStep);
     event->accept();
 }
 

@@ -109,6 +109,8 @@ class Component
     virtual QVector<bool> keyStates() const;
     virtual void pressKey(int row, int column);
     virtual void releaseKey();
+    virtual bool adjustInteractiveValue(double delta);
+    virtual void prepareManualStep();
     virtual QVariantMap saveState() const;
     virtual void loadState(const QVariantMap &state);
 
@@ -265,6 +267,27 @@ class InductorComponent final : public Component
     double m_initialCurrent{0.0};
     double m_current{0.0};
     std::optional<double> m_lastVoltage;
+};
+
+
+class PotentiometerComponent final : public Component
+{
+  public:
+    QString typeId() const override;
+    QVector<ComponentPinDefinition> pinDefinitions() const override;
+    QVector<ComponentProperty> editableProperties() const override;
+    bool setProperty(const QString &key, const QVariant &value) override;
+    QVariant property(const QString &key) const override;
+    QString valueText() const override;
+    QString runtimeText() const override;
+    ComponentStepResult step(const QVector<std::optional<double>> &pinVoltages,
+                             double timeSeconds) override;
+    bool adjustInteractiveValue(double delta) override;
+
+  private:
+    double m_totalResistance{10000.0};
+    double m_wiperPercent{50.0};
+    std::optional<double> m_wiperVoltage;
 };
 
 class SwitchComponent final : public Component

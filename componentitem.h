@@ -56,8 +56,10 @@ class ComponentItem final : public QGraphicsObject
     Component *componentModel();
     const Component *componentModel() const;
     bool setComponentProperty(const QString &key, const QVariant &value);
+    bool adjustInteractiveValue(double delta);
     ComponentStepResult updateSimulation(const QVector<std::optional<double>> &pinVoltages,
                                          double timeSeconds);
+    void resetSimulationState();
     QVariantMap componentState() const;
     void restoreComponentState(const QVariantMap &state);
 

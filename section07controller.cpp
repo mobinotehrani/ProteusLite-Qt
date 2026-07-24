@@ -18,23 +18,29 @@ Section07Controller::Section07Controller(QMainWindow *window,
                                          QObject *parent)
     : QObject(parent), m_window(window), m_section05(section05)
 {
-    m_monitorDock = new QDockWidget(tr("Section 7 Monitor"), m_window);
+    m_monitorDock = new QDockWidget(tr("Advanced Devices"), m_window);
     m_monitorDock->setObjectName(QStringLiteral("Section07MonitorDock"));
     m_monitorDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    m_monitorDock->setMinimumWidth(350);
+    m_monitorDock->setMinimumWidth(360);
+    m_monitorDock->setStyleSheet(QStringLiteral(
+        "QDockWidget{color:#0f172a;font-weight:700;}"
+        "QDockWidget::title{background:#e8eef7;border:1px solid #cbd5e1;"
+        "padding:8px 10px;text-align:left;}"));
 
     m_monitor = new QPlainTextEdit(m_monitorDock);
     m_monitor->setReadOnly(true);
+    m_monitor->setLineWrapMode(QPlainTextEdit::NoWrap);
     m_monitor->setPlaceholderText(
-        tr("Place an ADC, DAC, MCU, memory, LCD or keypad to view its live state."));
-    m_monitor->setStyleSheet(
-        QStringLiteral("QPlainTextEdit{background:#111827;color:#e5e7eb;border:0;padding:8px;"
-                       "font-family:Consolas,monospace;font-size:10pt;}"));
+        tr("ADC, DAC, MCU, memory, LCD and keypad activity appears here."));
+    m_monitor->setStyleSheet(QStringLiteral(
+        "QPlainTextEdit{background:#0b1220;color:#dbeafe;border:1px solid #1e293b;"
+        "border-radius:8px;padding:10px;selection-background-color:#2563eb;"
+        "font-family:'Cascadia Mono','Consolas',monospace;font-size:10pt;}"));
     m_monitorDock->setWidget(m_monitor);
     m_window->addDockWidget(Qt::RightDockWidgetArea, m_monitorDock);
 
     m_timer = new QTimer(this);
-    m_timer->setInterval(120);
+    m_timer->setInterval(140);
     connect(m_timer, &QTimer::timeout, this, &Section07Controller::refreshMonitor);
     m_timer->start();
     refreshMonitor();
@@ -42,8 +48,8 @@ Section07Controller::Section07Controller(QMainWindow *window,
     if (m_window && m_window->statusBar())
     {
         m_window->statusBar()->showMessage(
-            tr("Section 7 ready: converters, firmware MCU, external memory, LCD and keypad are available."),
-            6500);
+            tr("Advanced converters, firmware MCU, memory, LCD and keypad are ready."),
+            5000);
     }
 }
 
@@ -54,23 +60,35 @@ void Section07Controller::refreshMonitor()
     {
         for (ComponentItem *item : m_section05->componentItems())
         {
-            if (!item || !isSection07Component(item->componentType()))
+            if (!item || !isAdvancedDevice(item->componentType()))
                 continue;
-
-            rows.append(QStringLiteral("%1 [%2]  %3")
+            rows.append(QStringLiteral("%1  [%2]  %3")
                             .arg(item->reference(),
                                  item->componentType(),
                                  shortened(item->runtimeText())));
         }
     }
 
-    std::sort(rows.begin(), rows.end(), [](const QString &first, const QString &second)
+    std::sort(rows.begin(),
+              rows.end(),
+              [](const QString &first, const QString &second)
               { return first.localeAwareCompare(second) < 0; });
 
+    QStringList lines;
+    lines.append(tr("ADVANCED DEVICES  |  active: %1").arg(rows.size()));
+    lines.append(QString(46, QLatin1Char('-')));
     if (rows.isEmpty())
-        rows.append(tr("No Section 7 component is placed yet."));
+    {
+        lines.append(tr("No advanced device is placed yet."));
+        lines.append(QString());
+        lines.append(tr("Place an ADC, DAC, MCU, memory, LCD or keypad to inspect it here."));
+    }
+    else
+    {
+        lines.append(rows);
+    }
 
-    const QString text = rows.join(QLatin1Char('\n'));
+    const QString text = lines.join(QLatin1Char('\n'));
     if (text == m_previousText || !m_monitor)
         return;
 
@@ -78,7 +96,7 @@ void Section07Controller::refreshMonitor()
     m_monitor->setPlainText(text);
 }
 
-bool Section07Controller::isSection07Component(const QString &type)
+bool Section07Controller::isAdvancedDevice(const QString &type)
 {
     return type == QStringLiteral("ADC") || type == QStringLiteral("DAC") ||
            type == QStringLiteral("MCU") || type == QStringLiteral("EEPROM") ||
@@ -87,9 +105,10 @@ bool Section07Controller::isSection07Component(const QString &type)
 
 QString Section07Controller::shortened(const QString &text, int maximumLength)
 {
-    if (text.size() <= maximumLength)
-        return text;
-    return text.left(std::max(0, maximumLength - 1)) + QChar(0x2026);
+    const QString compact = text.simplified();
+    if (compact.size() <= maximumLength)
+        return compact;
+    return compact.left(std::max(0, maximumLength - 1)) + QChar(0x2026);
 }
 
 namespace
