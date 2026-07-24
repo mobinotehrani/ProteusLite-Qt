@@ -95,6 +95,16 @@ ComponentItem *Section05Controller::componentItem(const QString &modelId) const
     return m_components.value(modelId, nullptr);
 }
 
+QList<WireItem *> Section05Controller::wireItems() const
+{
+    return m_wires.values();
+}
+
+WireItem *Section05Controller::wireItem(const QString &modelId) const
+{
+    return m_wires.value(modelId, nullptr);
+}
+
 CanvasView *Section05Controller::canvasView() const
 {
     return m_canvas;

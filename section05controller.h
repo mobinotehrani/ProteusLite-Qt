@@ -30,6 +30,8 @@ class Section05Controller final : public QObject
     const CircuitGraph &circuitGraph() const;
     QList<ComponentItem *> componentItems() const;
     ComponentItem *componentItem(const QString &modelId) const;
+    QList<WireItem *> wireItems() const;
+    WireItem *wireItem(const QString &modelId) const;
     CanvasView *canvasView() const;
 
   protected:

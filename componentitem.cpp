@@ -402,6 +402,18 @@ bool ComponentItem::setComponentProperty(const QString &key, const QVariant &val
     return true;
 }
 
+bool ComponentItem::adjustInteractiveValue(double delta)
+{
+    if (!m_component || !m_component->adjustInteractiveValue(delta))
+        return false;
+
+    syncValueText();
+    update();
+    emit stateChanged();
+    emit edited();
+    return true;
+}
+
 ComponentStepResult ComponentItem::updateSimulation(const QVector<std::optional<double>> &pinVoltages,
                                                     double timeSeconds)
 {
@@ -411,6 +423,29 @@ ComponentStepResult ComponentItem::updateSimulation(const QVector<std::optional<
     syncValueText();
     update();
     return result;
+}
+
+void ComponentItem::resetSimulationState()
+{
+    if (!m_component)
+        return;
+
+    QVariantMap editableValues;
+    const QVector<ComponentProperty> properties = m_component->editableProperties();
+    for (const ComponentProperty &property : properties)
+        editableValues.insert(property.key, m_component->property(property.key));
+
+    std::unique_ptr<Component> fresh = ComponentFactory::create(m_definition.id);
+    if (!fresh)
+        return;
+    for (auto value = editableValues.cbegin(); value != editableValues.cend(); ++value)
+        fresh->setProperty(value.key(), value.value());
+
+    m_component = std::move(fresh);
+    refreshPins(false);
+    syncValueText();
+    update();
+    emit stateChanged();
 }
 
 QVariantMap ComponentItem::componentState() const

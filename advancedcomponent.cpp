@@ -95,6 +95,8 @@ bool MicrocontrollerComponent::setProperty(const QString &key, const QVariant &v
             m_core.loadFlash({});
             m_lastEvaluationTime = -1.0;
             m_cycleRemainder = 0.0;
+            m_manualInstructionRequested = false;
+            m_manualInstructionTime = -1.0;
             return true;
         }
         loadFirmware(path);
@@ -184,8 +186,21 @@ ComponentStepResult MicrocontrollerComponent::step(
     if (m_lastEvaluationTime < 0.0)
         m_lastEvaluationTime = timeSeconds;
 
-    if (powered && m_autoRun && !m_core.halted() && m_core.flashSize() > 0 &&
-        timeSeconds > m_lastEvaluationTime + 1e-12)
+    bool manualInstructionExecuted = false;
+    if (powered && m_manualInstructionRequested && !m_core.halted() && m_core.flashSize() > 0)
+    {
+        const McuInstructionResult instruction = m_core.executeNext();
+        manualInstructionExecuted = true;
+        m_manualInstructionTime = timeSeconds;
+        if (!instruction.error.isEmpty())
+            appendUnique(warnings, instruction.error);
+    }
+    m_manualInstructionRequested = false;
+
+    const bool holdAutomaticExecution =
+        manualInstructionExecuted || std::abs(timeSeconds - m_manualInstructionTime) <= 1e-12;
+    if (!holdAutomaticExecution && powered && m_autoRun && !m_core.halted() &&
+        m_core.flashSize() > 0 && timeSeconds > m_lastEvaluationTime + 1e-12)
     {
         const double elapsed = std::clamp(timeSeconds - m_lastEvaluationTime, 0.0, 0.25);
         const double requestedCycles = elapsed * m_clockFrequency + m_cycleRemainder;
@@ -211,6 +226,11 @@ ComponentStepResult MicrocontrollerComponent::step(
         drivePort(result, port);
     result.warnings = warnings;
     return result;
+}
+
+void MicrocontrollerComponent::prepareManualStep()
+{
+    m_manualInstructionRequested = true;
 }
 
 bool MicrocontrollerComponent::active() const
@@ -240,6 +260,8 @@ void MicrocontrollerComponent::loadState(const QVariantMap &state)
     m_core.loadState(state.value(QStringLiteral("core")).toMap());
     m_lastEvaluationTime = state.value(QStringLiteral("lastEvaluationTime"), -1.0).toDouble();
     m_cycleRemainder = state.value(QStringLiteral("cycleRemainder"), 0.0).toDouble();
+    m_manualInstructionRequested = false;
+    m_manualInstructionTime = -1.0;
 }
 
 QString MicrocontrollerComponent::firmwareStatus() const
@@ -258,6 +280,8 @@ bool MicrocontrollerComponent::loadFirmware(const QString &filePath)
     m_firmwarePath = filePath;
     m_lastEvaluationTime = -1.0;
     m_cycleRemainder = 0.0;
+    m_manualInstructionRequested = false;
+    m_manualInstructionTime = -1.0;
     if (!loaded.success)
     {
         m_firmwareStatus = QStringLiteral("Firmware error: %1").arg(loaded.error);

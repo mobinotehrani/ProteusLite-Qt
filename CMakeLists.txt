@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ProteusPro VERSION 0.7 LANGUAGES CXX)
+project(ProteusPro VERSION 0.8 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,6 +52,8 @@ add_executable(ProteusPro
     section06controller.h
     section07controller.cpp
     section07controller.h
+    section08controller.cpp
+    section08controller.h
 )
 
 target_link_libraries(ProteusPro PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
