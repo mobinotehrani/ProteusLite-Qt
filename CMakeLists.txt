@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ProteusPro VERSION 0.8 LANGUAGES CXX)
+project(ProteusPro VERSION 0.9 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -54,6 +54,10 @@ add_executable(ProteusPro
     section07controller.h
     section08controller.cpp
     section08controller.h
+    oscilloscopewidget.cpp
+    oscilloscopewidget.h
+    section09controller.cpp
+    section09controller.h
 )
 
 target_link_libraries(ProteusPro PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

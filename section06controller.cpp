@@ -187,6 +187,22 @@ Section06Controller::signalForEndpoint(const QString &endpoint) const
     return signal;
 }
 
+Section06Controller::WireSignal
+Section06Controller::signalForComponentPin(const QString &componentId, int pinIndex) const
+{
+    if (componentId.isEmpty() || pinIndex < 0)
+        return {};
+    return signalForEndpoint(CircuitGraph::pinEndpoint(componentId, pinIndex));
+}
+
+std::optional<double>
+Section06Controller::branchCurrentForComponent(const QString &componentId) const
+{
+    if (!m_branchCurrents.contains(componentId))
+        return std::nullopt;
+    return m_branchCurrents.value(componentId);
+}
+
 void Section06Controller::runSimulation()
 {
     if (m_state == SimulationState::Running)
@@ -484,7 +500,9 @@ Section06Controller::passiveBranches(const NetworkSnapshot &snapshot) const
             continue;
 
         const QString type = item->componentType();
-        if (type != QStringLiteral("Resistor") && !isLedType(type))
+        if (type != QStringLiteral("Resistor") &&
+            type != QStringLiteral("Ammeter") &&
+            !isLedType(type))
             continue;
 
         PassiveBranch branch;
@@ -502,6 +520,11 @@ Section06Controller::passiveBranches(const NetworkSnapshot &snapshot) const
                                          item->componentModel()
                                              ->property(QStringLiteral("resistance"))
                                              .toDouble());
+        }
+        else if (type == QStringLiteral("Ammeter"))
+        {
+            branch.kind = PassiveKind::Resistor;
+            branch.resistance = 0.001;
         }
         else
         {
