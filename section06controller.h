@@ -45,6 +45,8 @@ class Section06Controller final : public QObject
     double simulationTime() const;
     quint64 stepCount() const;
     WireSignal signalForEndpoint(const QString &endpoint) const;
+    WireSignal signalForComponentPin(const QString &componentId, int pinIndex) const;
+    std::optional<double> branchCurrentForComponent(const QString &componentId) const;
 
   public slots:
     void runSimulation();
