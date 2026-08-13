@@ -43,6 +43,49 @@ MainWindow::MainWindow(QWidget *parent)
     QTimer::singleShot(0, this, [this] { showStartMenu(); });
 }
 
+bool MainWindow::hasActiveProject() const
+{
+    return m_workspaceStack && m_workspaceStack->currentWidget() == m_canvasPage;
+}
+
+QString MainWindow::currentProjectName() const
+{
+    return m_currentProject.name;
+}
+
+QString MainWindow::currentProjectPath() const
+{
+    return m_currentProject.filePath;
+}
+
+QSize MainWindow::currentCanvasSize() const
+{
+    return m_currentProject.canvasSize;
+}
+
+void MainWindow::markProjectSaved(const QString &filePath, int componentCount, int wireCount)
+{
+    if (filePath.isEmpty() || !hasActiveProject())
+        return;
+
+    m_currentProject.filePath = QFileInfo(filePath).absoluteFilePath();
+    m_currentProject.openedFromFile = true;
+    m_currentProject.componentCount = componentCount;
+    m_currentProject.wireCount = wireCount;
+    m_recentProjects.add(m_currentProject.filePath);
+    refreshRecentMenu();
+
+    m_projectTitle->setText(m_currentProject.name);
+    QString details = tr("Canvas: %1 x %2 px   |   Components in file: %3   |   Wires in file: %4")
+                          .arg(m_currentProject.canvasSize.width())
+                          .arg(m_currentProject.canvasSize.height())
+                          .arg(componentCount)
+                          .arg(wireCount);
+    details += QStringLiteral("\n") + m_currentProject.filePath;
+    m_projectDetails->setText(details);
+    updateWindowTitle();
+}
+
 void MainWindow::buildInterface()
 {
     setStyleSheet(
@@ -53,10 +96,14 @@ void MainWindow::buildInterface()
         "QLabel#ProjectDetails{color:#64748b;}"
         "QLabel#EmptyTitle{color:#0f172a;}"
         "QLabel#EmptyHint{color:#64748b;}"
-        "QMenuBar{background:white;border-bottom:1px solid #dbe3ef;}"
-        "QMenuBar::item:selected{background:#dbeafe;}"
-        "QMenu{background:white;border:1px solid #cbd5e1;}"
+        "QMenuBar{background:white;border-bottom:1px solid #dbe3ef;padding:2px 6px;}"
+        "QMenuBar::item{background:transparent;color:#0f172a;padding:6px 10px;border-radius:5px;}"
+        "QMenuBar::item:selected{background:#dbeafe;color:#1e3a8a;}"
+        "QMenu{background:#ffffff;color:#0f172a;border:1px solid #cbd5e1;padding:5px;}"
+        "QMenu::item{background:transparent;color:#0f172a;padding:7px 28px 7px 12px;border-radius:5px;}"
         "QMenu::item:selected{background:#dbeafe;color:#1e3a8a;}"
+        "QMenu::item:disabled{color:#94a3b8;}"
+        "QMenu::separator{height:1px;background:#e2e8f0;margin:5px 8px;}"
         "QToolBar{background:white;border:0;border-bottom:1px solid #dbe3ef;padding:5px;spacing:4px;}"
         "QToolButton{background:#f8fafc;color:#0f172a;border:1px solid #dbe3ef;border-radius:7px;padding:6px 10px;}"
         "QToolButton:hover{background:#e0ecff;border-color:#93c5fd;}"
@@ -180,7 +227,14 @@ void MainWindow::buildComponentLibrary()
 
 void MainWindow::buildMenus()
 {
-    QMenu *fileMenu = menuBar()->addMenu(tr("File"));
+    auto *mainMenuBar = new QMenuBar(this);
+    mainMenuBar->setObjectName(QStringLiteral("MainMenuBar"));
+    mainMenuBar->setNativeMenuBar(false);
+    mainMenuBar->setMinimumHeight(32);
+    mainMenuBar->setVisible(true);
+    setMenuBar(mainMenuBar);
+
+    QMenu *fileMenu = mainMenuBar->addMenu(tr("File"));
 
     QAction *newAction = fileMenu->addAction(tr("New Project..."));
     newAction->setShortcut(QKeySequence::New);
@@ -201,7 +255,7 @@ void MainWindow::buildMenus()
     exitAction->setShortcut(QKeySequence::Quit);
     connect(exitAction, &QAction::triggered, this, &QWidget::close);
 
-    QMenu *viewMenu = menuBar()->addMenu(tr("View"));
+    QMenu *viewMenu = mainMenuBar->addMenu(tr("View"));
     viewMenu->addAction(m_libraryDock->toggleViewAction());
     viewMenu->addSeparator();
     viewMenu->addAction(m_gridAction);
@@ -363,6 +417,7 @@ void MainWindow::createNewProject(const QString &name, const QSize &canvasSize)
 {
     m_currentProject = ProjectDocument::createNew(name, canvasSize);
     showProject(m_currentProject);
+    emit projectCreated();
     statusBar()->showMessage(
         tr("New project created: %1 x %2").arg(canvasSize.width()).arg(canvasSize.height()), 3500);
 }
@@ -393,6 +448,7 @@ void MainWindow::openProject(const QString &filePath)
     m_recentProjects.add(filePath);
     refreshRecentMenu();
     showProject(metadata);
+    emit projectOpened(metadata.filePath);
     statusBar()->showMessage(tr("Opened %1").arg(QFileInfo(filePath).fileName()), 3500);
 }
 

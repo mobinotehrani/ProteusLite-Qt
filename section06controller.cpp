@@ -11,6 +11,7 @@
 #include <QSet>
 #include <QStatusBar>
 #include <QTimer>
+#include <utility>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -203,9 +204,17 @@ Section06Controller::branchCurrentForComponent(const QString &componentId) const
     return m_branchCurrents.value(componentId);
 }
 
+void Section06Controller::setRunGuard(std::function<bool()> guard)
+{
+    m_runGuard = std::move(guard);
+}
+
 void Section06Controller::runSimulation()
 {
     if (m_state == SimulationState::Running)
+        return;
+
+    if (m_runGuard && !m_runGuard())
         return;
 
     synchronizeComponents();

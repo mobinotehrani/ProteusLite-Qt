@@ -42,6 +42,12 @@ class ComponentItem final : public QGraphicsObject
     QString reference() const;
     QString value() const;
     QString runtimeText() const;
+    int rotationSteps() const;
+    bool isMirroredHorizontal() const;
+    bool isMirroredVertical() const;
+
+    void setReference(const QString &reference);
+    void restoreVisualState(int rotationSteps, bool mirrorHorizontal, bool mirrorVertical);
 
     QVector<PinModel> pins() const;
     QPointF scenePinPosition(int pinIndex) const;

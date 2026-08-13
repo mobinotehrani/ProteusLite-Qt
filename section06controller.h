@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <QVector>
 #include <optional>
+#include <functional>
 
 class ComponentItem;
 class QDockWidget;
@@ -47,6 +48,7 @@ class Section06Controller final : public QObject
     WireSignal signalForEndpoint(const QString &endpoint) const;
     WireSignal signalForComponentPin(const QString &componentId, int pinIndex) const;
     std::optional<double> branchCurrentForComponent(const QString &componentId) const;
+    void setRunGuard(std::function<bool()> guard);
 
   public slots:
     void runSimulation();
@@ -137,6 +139,7 @@ class Section06Controller final : public QObject
     QHash<QString, ComponentItem *> m_components;
     QHash<QString, ComponentStepResult> m_lastResults;
     QHash<QString, double> m_branchCurrents;
+    std::function<bool()> m_runGuard;
     NetworkSnapshot m_lastSnapshot;
     QString m_lastMonitorText;
 };

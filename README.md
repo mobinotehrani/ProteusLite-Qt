@@ -62,7 +62,7 @@
 4. CMake را اجرا کنید.
 5. پروژه را Build و سپس Run کنید.
 
-نسخه‌های قبلی پروژه با Qt 6 و MinGW Build و اجرا شده‌اند. نسخه فعلی پس از اضافه شدن ابزارهای اندازه‌گیری باید یک‌بار به‌صورت تمیز در Qt Creator Build شود. سناریوهای `SECTION08_README_FA.md` برای کنترل شبیه‌سازی و `SECTION09_README_FA.md` برای ابزارهای اندازه‌گیری، تست اصلی این نسخه هستند.
+کد نسخه 1.0 با Qt 5 و Qt 6 سازگار نگه داشته شده است. Menu Bar به‌صورت صریح داخل پنجره نمایش داده می‌شود و پس از اعمال فایل‌های نهایی یک Clean Build در Qt Creator توصیه می‌شود. سناریوهای `SECTION08_README_FA.md` و `SECTION09_README_FA.md` برای تست بازگشتی و `SECTION10_README_FA.md` برای Save/Load، Undo/Redo، Export و DRC استفاده می‌شوند.
 
 ### اجرا از خط فرمان
 
@@ -102,9 +102,10 @@ section07controller.h / section07controller.cpp
 section08controller.h / section08controller.cpp
 section09controller.h / section09controller.cpp
 oscilloscopewidget.h / oscilloscopewidget.cpp
+section10controller.h / section10controller.cpp
 ```
 
-هر بخش مسئولیت مشخصی دارد. برای نمونه، `CanvasView` رفتار بوم را کنترل می‌کند، `ComponentLibraryPanel` کتابخانه قطعات را می‌سازد، `CircuitGraph` اطلاعات اتصال‌ها را نگه می‌دارد و کنترلرهای بخش پنجم تا نهم رابط بین مدل مدار و محیط گرافیکی هستند.
+هر بخش مسئولیت مشخصی دارد. برای نمونه، `CanvasView` رفتار بوم را کنترل می‌کند، `ComponentLibraryPanel` کتابخانه قطعات را می‌سازد، `CircuitGraph` اطلاعات اتصال‌ها را نگه می‌دارد و کنترلرهای بخش پنجم تا دهم رابط بین مدل مدار و محیط گرافیکی هستند.
 
 ## شاخه‌های پروژه
 
@@ -118,6 +119,7 @@ oscilloscopewidget.h / oscilloscopewidget.cpp
 - `feature/advanced-components`: مبدل‌ها، MCU و Peripheralهای بخش هفتم
 - `feature/simulation-control`: کنترل اجرای شبیه‌سازی و نمایش زنده سیم‌ها
 - `feature/measurement-tools`: پروب، ابزارهای اندازه‌گیری و اسیلوسکوپ
+- `feature/final-project`: قابلیت‌های نهایی ذخیره، Undo/Redo، Export، DRC و Simulation Log
 
 ## مستندات بخش‌ها
 
@@ -130,7 +132,8 @@ oscilloscopewidget.h / oscilloscopewidget.cpp
 - [بخش هفتم: قطعات پیشرفته و میکروکنترلر](SECTION07_README_FA.md)
 - [بخش هشتم: کنترل اجرای شبیه‌سازی](SECTION08_README_FA.md)
 - [بخش نهم: ابزارهای اندازه‌گیری](SECTION09_README_FA.md)
+- [بخش دهم و نهایی: مدیریت پروژه و کنترل کیفیت مدار](SECTION10_README_FA.md)
 
 ## نکته پایانی
 
-این مخزن یک پروژه دانشگاهی در حال توسعه است. در پیاده‌سازی آن تلاش شده منطق داده، رابط گرافیکی و کنترل رفتار برنامه تا جای ممکن از یکدیگر جدا باشند تا توسعه بخش‌های بعدی ساده‌تر و قابل مدیریت‌تر باشد.
+این مخزن نسخه نهایی یک پروژه دانشگاهی آموزشی است. در پیاده‌سازی آن تلاش شده منطق داده، رابط گرافیکی و کنترل رفتار برنامه تا جای ممکن از یکدیگر جدا باشند تا توسعه بخش‌های بعدی ساده‌تر و قابل مدیریت‌تر باشد.
