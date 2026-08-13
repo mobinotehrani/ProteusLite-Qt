@@ -3,6 +3,7 @@
 #include "circuitmodel.h"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QPoint>
@@ -34,6 +35,14 @@ class Section05Controller final : public QObject
     WireItem *wireItem(const QString &modelId) const;
     CanvasView *canvasView() const;
 
+    QJsonObject circuitSnapshot() const;
+    bool restoreCircuitSnapshot(const QJsonObject &snapshot, QString &errorMessage);
+    void clearCircuit();
+
+  signals:
+    void circuitChanged();
+    void simulationMessage(const QString &message);
+
   protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
@@ -55,7 +64,6 @@ class Section05Controller final : public QObject
     void removeComponent(ComponentItem *component);
     void removeWire(WireItem *wire);
     void removeJunction(JunctionItem *junction);
-    void clearCircuit();
 
     EndpointHit endpointAt(const QPointF &scenePosition) const;
     WireItem *wireAt(const QPointF &scenePosition) const;
@@ -80,6 +88,8 @@ class Section05Controller final : public QObject
     void showWireMenu(WireItem *wire, const QPoint &globalPosition, const QPointF &scenePosition);
     void showJunctionMenu(JunctionItem *junction, const QPoint &globalPosition);
     void setStatus(const QString &message, int timeout = 3500) const;
+    void connectComponentSignals(ComponentItem *component);
+    void notifyCircuitChanged();
 
     static QPoint mousePosition(const QMouseEvent *event);
 
@@ -97,4 +107,5 @@ class Section05Controller final : public QObject
     QString m_wireStartEndpoint;
     QGraphicsPathItem *m_wirePreview{};
     QString m_lastWindowTitle;
+    bool m_restoring{false};
 };

@@ -23,6 +23,7 @@
 #include <QPolygonF>
 #include <QSpinBox>
 #include <QPushButton>
+#include <QRegularExpression>
 
 #include <algorithm>
 #include <cmath>
@@ -204,6 +205,51 @@ QString ComponentItem::runtimeText() const
     return m_component ? m_component->runtimeText() : m_value;
 }
 
+int ComponentItem::rotationSteps() const
+{
+    return m_rotationSteps;
+}
+
+bool ComponentItem::isMirroredHorizontal() const
+{
+    return m_mirrorHorizontal;
+}
+
+bool ComponentItem::isMirroredVertical() const
+{
+    return m_mirrorVertical;
+}
+
+void ComponentItem::setReference(const QString &reference)
+{
+    const QString trimmed = reference.trimmed();
+    if (trimmed.isEmpty() || trimmed == m_reference)
+        return;
+
+    m_reference = trimmed;
+
+    static const QRegularExpression expression(QStringLiteral("^([A-Za-z]+)(\\d+)$"));
+    const QRegularExpressionMatch match = expression.match(trimmed);
+    if (match.hasMatch())
+    {
+        const QString prefix = match.captured(1).toUpper();
+        const int number = match.captured(2).toInt();
+        referenceCounters()[prefix] = std::max(referenceCounters().value(prefix), number);
+    }
+
+    update();
+}
+
+void ComponentItem::restoreVisualState(int rotationSteps,
+                                       bool mirrorHorizontal,
+                                       bool mirrorVertical)
+{
+    m_rotationSteps = ((rotationSteps % 4) + 4) % 4;
+    m_mirrorHorizontal = mirrorHorizontal;
+    m_mirrorVertical = mirrorVertical;
+    applyVisualTransform();
+}
+
 QVector<PinModel> ComponentItem::pins() const
 {
     return m_pins;
@@ -365,7 +411,7 @@ void ComponentItem::openProperties()
 
     const QString newReference = referenceEdit->text().trimmed();
     if (!newReference.isEmpty())
-        m_reference = newReference;
+        setReference(newReference);
 
     for (const ComponentProperty &property : properties)
     {
@@ -455,7 +501,11 @@ QVariantMap ComponentItem::componentState() const
 
 void ComponentItem::restoreComponentState(const QVariantMap &state)
 {
+    if (!m_component)
+        return;
+
     m_component->loadState(state);
+    refreshPins(false);
     syncValueText();
     update();
     emit stateChanged();

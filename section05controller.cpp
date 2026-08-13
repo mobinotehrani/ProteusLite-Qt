@@ -15,6 +15,9 @@
 #include <QGraphicsScene>
 #include <QKeyEvent>
 #include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QMetaType>
 #include <QLineF>
 #include <QMainWindow>
 #include <QMenu>
@@ -28,6 +31,86 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+
+
+namespace
+{
+QJsonValue variantToJson(const QVariant &value)
+{
+    if (!value.isValid() || value.isNull())
+        return QJsonValue();
+
+    if (value.userType() == QMetaType::QByteArray)
+    {
+        QJsonObject encoded;
+        encoded.insert(QStringLiteral("__proteusType"), QStringLiteral("QByteArray"));
+        encoded.insert(QStringLiteral("base64"),
+                       QString::fromLatin1(value.toByteArray().toBase64()));
+        return encoded;
+    }
+
+    if (value.userType() == QMetaType::QVariantMap)
+    {
+        QJsonObject object;
+        const QVariantMap map = value.toMap();
+        for (auto it = map.cbegin(); it != map.cend(); ++it)
+            object.insert(it.key(), variantToJson(it.value()));
+        return object;
+    }
+
+    if (value.userType() == QMetaType::QVariantList || value.canConvert<QVariantList>())
+    {
+        QJsonArray array;
+        const QVariantList list = value.toList();
+        for (const QVariant &entry : list)
+            array.append(variantToJson(entry));
+        return array;
+    }
+
+    return QJsonValue::fromVariant(value);
+}
+
+QVariant jsonToVariant(const QJsonValue &value)
+{
+    if (value.isObject())
+    {
+        const QJsonObject object = value.toObject();
+        if (object.value(QStringLiteral("__proteusType")).toString() == QStringLiteral("QByteArray"))
+            return QByteArray::fromBase64(object.value(QStringLiteral("base64")).toString().toLatin1());
+
+        QVariantMap map;
+        for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+            map.insert(it.key(), jsonToVariant(it.value()));
+        return map;
+    }
+
+    if (value.isArray())
+    {
+        QVariantList list;
+        for (const QJsonValue &entry : value.toArray())
+            list.append(jsonToVariant(entry));
+        return list;
+    }
+
+    return value.toVariant();
+}
+
+QJsonObject variantMapToJson(const QVariantMap &map)
+{
+    QJsonObject object;
+    for (auto it = map.cbegin(); it != map.cend(); ++it)
+        object.insert(it.key(), variantToJson(it.value()));
+    return object;
+}
+
+QVariantMap jsonToVariantMap(const QJsonObject &object)
+{
+    QVariantMap map;
+    for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+        map.insert(it.key(), jsonToVariant(it.value()));
+    return map;
+}
+}
 
 Section05Controller::Section05Controller(QMainWindow *window,
                                          CanvasView *canvas,
@@ -108,6 +191,205 @@ WireItem *Section05Controller::wireItem(const QString &modelId) const
 CanvasView *Section05Controller::canvasView() const
 {
     return m_canvas;
+}
+
+QJsonObject Section05Controller::circuitSnapshot() const
+{
+    QJsonObject root;
+
+    QJsonArray components;
+    QList<ComponentItem *> componentList = m_components.values();
+    std::sort(componentList.begin(), componentList.end(), [](ComponentItem *first, ComponentItem *second)
+              {
+                  if (!first || !second)
+                      return first != nullptr;
+                  return first->modelId().localeAwareCompare(second->modelId()) < 0;
+              });
+
+    for (ComponentItem *component : componentList)
+    {
+        if (!component)
+            continue;
+
+        QJsonObject object;
+        object.insert(QStringLiteral("id"), component->modelId());
+        object.insert(QStringLiteral("type"), component->componentType());
+        object.insert(QStringLiteral("reference"), component->reference());
+        object.insert(QStringLiteral("x"), component->pos().x());
+        object.insert(QStringLiteral("y"), component->pos().y());
+        object.insert(QStringLiteral("rotation"), component->rotationSteps());
+        object.insert(QStringLiteral("mirrorHorizontal"), component->isMirroredHorizontal());
+        object.insert(QStringLiteral("mirrorVertical"), component->isMirroredVertical());
+
+        QVariantMap properties;
+        if (const Component *model = component->componentModel())
+        {
+            const QVector<ComponentProperty> editable = model->editableProperties();
+            for (const ComponentProperty &property : editable)
+                properties.insert(property.key, model->property(property.key));
+        }
+        object.insert(QStringLiteral("properties"), variantMapToJson(properties));
+        object.insert(QStringLiteral("state"), variantMapToJson(component->componentState()));
+        components.append(object);
+    }
+    root.insert(QStringLiteral("components"), components);
+
+    QJsonArray junctions;
+    QStringList junctionIds = m_graph.junctions().keys();
+    std::sort(junctionIds.begin(), junctionIds.end());
+    for (const QString &junctionId : junctionIds)
+    {
+        const JunctionModel junction = m_graph.junctions().value(junctionId);
+        QJsonObject object;
+        object.insert(QStringLiteral("id"), junction.id);
+        object.insert(QStringLiteral("x"), junction.position.x());
+        object.insert(QStringLiteral("y"), junction.position.y());
+        junctions.append(object);
+    }
+    root.insert(QStringLiteral("junctions"), junctions);
+
+    QJsonArray wires;
+    QStringList wireIds = m_graph.wires().keys();
+    std::sort(wireIds.begin(), wireIds.end());
+    for (const QString &wireId : wireIds)
+    {
+        const WireModel wire = m_graph.wires().value(wireId);
+        QJsonObject object;
+        object.insert(QStringLiteral("id"), wire.id);
+        object.insert(QStringLiteral("start"), wire.startEndpoint);
+        object.insert(QStringLiteral("end"), wire.endEndpoint);
+
+        QJsonArray points;
+        for (const QPointF &point : wire.points)
+        {
+            QJsonArray pair;
+            pair.append(point.x());
+            pair.append(point.y());
+            points.append(pair);
+        }
+        object.insert(QStringLiteral("points"), points);
+        wires.append(object);
+    }
+    root.insert(QStringLiteral("wires"), wires);
+
+    return root;
+}
+
+bool Section05Controller::restoreCircuitSnapshot(const QJsonObject &snapshot, QString &errorMessage)
+{
+    if (!m_canvas || !m_canvas->scene())
+    {
+        errorMessage = tr("The design canvas is not available.");
+        return false;
+    }
+
+    const QJsonValue componentsValue = snapshot.value(QStringLiteral("components"));
+    const QJsonValue wiresValue = snapshot.value(QStringLiteral("wires"));
+    if (!componentsValue.isArray() || !wiresValue.isArray())
+    {
+        errorMessage = tr("The project file does not contain a valid circuit snapshot.");
+        return false;
+    }
+
+    m_restoring = true;
+    clearCircuit();
+
+    QHash<QString, QString> componentIds;
+    QHash<QString, QString> junctionIds;
+
+    const QJsonArray components = componentsValue.toArray();
+    for (const QJsonValue &value : components)
+    {
+        const QJsonObject object = value.toObject();
+        const QString oldId = object.value(QStringLiteral("id")).toString();
+        const QString type = object.value(QStringLiteral("type")).toString();
+        const ComponentDefinition *definition = ComponentCatalog::find(type);
+        if (oldId.isEmpty() || !definition)
+        {
+            errorMessage = tr("A saved component has an unknown type: %1").arg(type);
+            clearCircuit();
+            m_restoring = false;
+            return false;
+        }
+
+        const QVector<PinModel> initialPins = ComponentItem::pinsForType(type);
+        const QString newId = m_graph.addComponent(type, initialPins);
+        auto *component = new ComponentItem(newId, *definition, m_canvas->gridSpacing());
+
+        const QVariantMap properties = jsonToVariantMap(object.value(QStringLiteral("properties")).toObject());
+        for (auto property = properties.cbegin(); property != properties.cend(); ++property)
+            component->setComponentProperty(property.key(), property.value());
+
+        const QJsonObject state = object.value(QStringLiteral("state")).toObject();
+        component->restoreComponentState(jsonToVariantMap(state));
+        m_graph.updateComponentPins(newId, component->pins());
+        component->setReference(object.value(QStringLiteral("reference")).toString());
+        component->restoreVisualState(object.value(QStringLiteral("rotation")).toInt(),
+                                      object.value(QStringLiteral("mirrorHorizontal")).toBool(),
+                                      object.value(QStringLiteral("mirrorVertical")).toBool());
+        component->setPos(QPointF(object.value(QStringLiteral("x")).toDouble(),
+                                  object.value(QStringLiteral("y")).toDouble()));
+
+        m_canvas->scene()->addItem(component);
+        m_components.insert(newId, component);
+        componentIds.insert(oldId, newId);
+        connectComponentSignals(component);
+    }
+
+    const QJsonArray junctions = snapshot.value(QStringLiteral("junctions")).toArray();
+    for (const QJsonValue &value : junctions)
+    {
+        const QJsonObject object = value.toObject();
+        const QString oldId = object.value(QStringLiteral("id")).toString();
+        JunctionItem *junction = createJunction(QPointF(object.value(QStringLiteral("x")).toDouble(),
+                                                        object.value(QStringLiteral("y")).toDouble()));
+        if (!oldId.isEmpty() && junction)
+            junctionIds.insert(oldId, junction->modelId());
+    }
+
+    auto remapEndpoint = [&componentIds, &junctionIds](const QString &endpoint) -> QString
+    {
+        QString oldComponentId;
+        int pinIndex = -1;
+        if (CircuitGraph::parsePinEndpoint(endpoint, oldComponentId, pinIndex))
+        {
+            const QString newComponentId = componentIds.value(oldComponentId);
+            return newComponentId.isEmpty() ? QString() : CircuitGraph::pinEndpoint(newComponentId, pinIndex);
+        }
+        return junctionIds.value(endpoint);
+    };
+
+    const QJsonArray wires = wiresValue.toArray();
+    for (const QJsonValue &value : wires)
+    {
+        const QJsonObject object = value.toObject();
+        const QString start = remapEndpoint(object.value(QStringLiteral("start")).toString());
+        const QString end = remapEndpoint(object.value(QStringLiteral("end")).toString());
+        if (start.isEmpty() || end.isEmpty())
+            continue;
+
+        WireItem *wire = createWire(start, end);
+        if (!wire)
+            continue;
+
+        QVector<QPointF> savedPoints;
+        const QJsonArray points = object.value(QStringLiteral("points")).toArray();
+        for (const QJsonValue &pointValue : points)
+        {
+            const QJsonArray pair = pointValue.toArray();
+            if (pair.size() >= 2)
+                savedPoints.append(QPointF(pair.at(0).toDouble(), pair.at(1).toDouble()));
+        }
+        if (savedPoints.size() >= 2)
+        {
+            wire->setPoints(savedPoints);
+            m_graph.updateWirePoints(wire->modelId(), savedPoints);
+        }
+    }
+
+    m_restoring = false;
+    errorMessage.clear();
+    return true;
 }
 
 bool Section05Controller::eventFilter(QObject *watched, QEvent *event)
@@ -258,24 +540,8 @@ void Section05Controller::createComponent(const QPointF &position)
     m_canvas->scene()->addItem(component);
     m_components.insert(modelId, component);
 
-    connect(
-        component, &ComponentItem::geometryChanged, this, [this, modelId] { updateConnectedWires(modelId); });
-    connect(component,
-            &ComponentItem::pinsChanged,
-            this,
-            [this, component] { handleComponentPinsChanged(component); });
-    connect(component,
-            &ComponentItem::deleteRequested,
-            this,
-            [this](ComponentItem *item) { removeComponent(item); });
-    connect(component,
-            &ComponentItem::edited,
-            this,
-            [this, component]
-            {
-                if (component)
-                    setStatus(tr("Updated %1.").arg(component->reference()), 2200);
-            });
+    connectComponentSignals(component);
+    notifyCircuitChanged();
 
     component->setSelected(true);
     component->setFocus();
@@ -303,6 +569,7 @@ void Section05Controller::removeComponent(ComponentItem *component)
     if (component->scene())
         component->scene()->removeItem(component);
     component->deleteLater();
+    notifyCircuitChanged();
     setStatus(tr("Component deleted."), 2200);
 }
 
@@ -317,6 +584,7 @@ void Section05Controller::removeWire(WireItem *wire)
     if (wire->scene())
         wire->scene()->removeItem(wire);
     delete wire;
+    notifyCircuitChanged();
 }
 
 void Section05Controller::removeJunction(JunctionItem *junction)
@@ -337,6 +605,7 @@ void Section05Controller::removeJunction(JunctionItem *junction)
     if (junction->scene())
         junction->scene()->removeItem(junction);
     junction->deleteLater();
+    notifyCircuitChanged();
     setStatus(tr("Junction deleted with its connected wires."), 2600);
 }
 
@@ -593,7 +862,9 @@ JunctionItem *Section05Controller::createJunction(const QPointF &position)
                     return;
                 m_graph.updateJunction(junctionId, junction->scenePos());
                 updateConnectedWires(junctionId);
+                notifyCircuitChanged();
             });
+    notifyCircuitChanged();
     return junction;
 }
 
@@ -614,6 +885,7 @@ WireItem *Section05Controller::createWire(const QString &startEndpoint, const QS
     wire->setPoints(points);
     m_canvas->scene()->addItem(wire);
     m_wires.insert(wireId, wire);
+    notifyCircuitChanged();
     return wire;
 }
 
@@ -650,6 +922,7 @@ void Section05Controller::handleComponentPinsChanged(ComponentItem *component)
     }
 
     updateConnectedWires(component->modelId());
+    notifyCircuitChanged();
     setStatus(tr("Updated pins for %1.").arg(component->reference()), 2400);
 }
 
@@ -798,6 +1071,55 @@ void Section05Controller::showJunctionMenu(JunctionItem *junction, const QPoint 
     QAction *deleteAction = menu.addAction(tr("Delete junction and connected wires"));
     if (menu.exec(globalPosition) == deleteAction)
         removeJunction(junction);
+}
+
+void Section05Controller::connectComponentSignals(ComponentItem *component)
+{
+    if (!component)
+        return;
+
+    const QString modelId = component->modelId();
+    connect(component,
+            &ComponentItem::geometryChanged,
+            this,
+            [this, modelId]
+            {
+                updateConnectedWires(modelId);
+                notifyCircuitChanged();
+            });
+    connect(component,
+            &ComponentItem::pinsChanged,
+            this,
+            [this, component] { handleComponentPinsChanged(component); });
+    connect(component,
+            &ComponentItem::deleteRequested,
+            this,
+            [this](ComponentItem *item) { removeComponent(item); });
+    connect(component,
+            &ComponentItem::edited,
+            this,
+            [this, component]
+            {
+                notifyCircuitChanged();
+                if (component && !m_restoring)
+                    setStatus(tr("Updated %1.").arg(component->reference()), 2200);
+            });
+    connect(component,
+            &ComponentItem::simulationWarning,
+            this,
+            [this, component](const QString &message)
+            {
+                if (message.isEmpty())
+                    return;
+                const QString reference = component ? component->reference() : tr("Component");
+                emit simulationMessage(QStringLiteral("%1: %2").arg(reference, message));
+            });
+}
+
+void Section05Controller::notifyCircuitChanged()
+{
+    if (!m_restoring)
+        emit circuitChanged();
 }
 
 void Section05Controller::setStatus(const QString &message, int timeout) const

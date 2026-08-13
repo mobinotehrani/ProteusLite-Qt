@@ -16,8 +16,20 @@ class QStackedWidget;
 
 class MainWindow final : public QMainWindow
 {
+    Q_OBJECT
+
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+
+    bool hasActiveProject() const;
+    QString currentProjectName() const;
+    QString currentProjectPath() const;
+    QSize currentCanvasSize() const;
+    void markProjectSaved(const QString &filePath, int componentCount, int wireCount);
+
+signals:
+    void projectCreated();
+    void projectOpened(const QString &filePath);
 
 private:
     void buildInterface();
